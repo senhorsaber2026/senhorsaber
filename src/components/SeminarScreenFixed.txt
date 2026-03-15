@@ -1,0 +1,165 @@
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Presentation as PresentationIcon, UploadCloud, FileText, 
+  ChevronLeft, ChevronRight, Download, RefreshCw, AlertCircle,
+  Clock, Target, Zap, CheckCircle, BookOpen, ImageIcon
+} from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { generateSeminarSlides } from '../services/aiService';
+import type { Presentation as PresentationType } from '../types';
+import * as pdfjsLib from 'pdfjs-dist';
+import pptxgen from 'pptxgenjs';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url
+).toString();
+
+export const SeminarScreenFixed: React.FC = () => {
+  const { apiKey, aiProvider, customBaseUrl, customModelId, userProfile } = useApp();
+  const [phase, setPhase] = useState<'config' | 'loading' | 'viewer'>('config');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<'por_pagina' | 'por_topico' | 'resumo_inteligente'>('resumo_inteligente');
+  const [presentation, setPresentation] = useState<PresentationType | null>(null);
+  const [style] = useState<'educacional'>('educacional');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [showNotes] = useState(true);
+  const [pageRange, setPageRange] = useState('');
+  const [targetTopic, setTargetTopic] = useState('');
+  const [error, setError] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const extractTextFromPDF = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = ''; let pages = [];
+    if (mode === 'por_pagina' && pageRange) {
+      const parts = pageRange.split('-').map(p => parseInt(p.trim()));
+      if (parts.length === 2) for (let i = parts[0]; i <= parts[1]; i++) pages.push(i);
+      else if (parts.length === 1) pages.push(parts[0]);
+    }
+    if (pages.length === 0) for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) pages.push(i);
+    for (const p of pages) {
+      if (p > pdf.numPages) continue;
+      const page = await pdf.getPage(p); const content = await page.getTextContent();
+      fullText += content.items.map((it: any) => it.str).join(' ') + '\n';
+    }
+    return fullText;
+  };
+
+  const handleGenerate = async () => {
+    if (!pdfFile || !apiKey) return;
+    setPhase('loading'); setError('');
+    try {
+      setIsExtracting(true); const text = await extractTextFromPDF(pdfFile); setIsExtracting(false);
+      const result = await generateSeminarSlides({ apiKey, provider: aiProvider, baseUrl: customBaseUrl, modelId: customModelId }, text, mode, 'educacional', userProfile.name, mode === 'por_topico' ? targetTopic : undefined);
+      setPresentation(result); setPhase('viewer'); setCurrentSlide(0);
+    } catch (e: any) { setError('Erro na geração'); setPhase('config'); }
+    finally { setIsExtracting(false); }
+  };
+
+  const exportToPPTX = () => {
+    if (!presentation) return;
+    const pptx = new pptxgen();
+    presentation.slides.forEach(slide => {
+      const pSlide = pptx.addSlide();
+      pSlide.background = { fill: 'FFFFFF' };
+      if (slide.type === 'capa') {
+        pSlide.addText(slide.title, { x: 1, y: 1.5, w: 8, h: 1, fontSize: 36, bold: true, color: '000000', align: 'center' });
+        if (slide.subtitle) pSlide.addText(slide.subtitle, { x: 1, y: 2.5, w: 8, h: 0.5, fontSize: 18, color: '000000', align: 'center' });
+      } else {
+        pSlide.addText(slide.title, { x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 24, color: '000000' });
+        if (slide.bullets) pSlide.addText(slide.bullets.map((b: string) => ({ text: b, options: { bullet: true } })), { x: 0.5, y: 1.5, w: 9, h: 3.5 });
+        else if (slide.content) pSlide.addText(slide.content, { x: 0.5, y: 1.5, w: 9, h: 3.5, color: '000000' });
+        if (slide.imageQuery) pSlide.addImage({ path: 'https://source.unsplash.com/800x600/?' + encodeURIComponent(slide.imageQuery), x: 6, y: 1.5, w: 3.5, h: 3.5 });
+      }
+      if (slide.script) pSlide.addNotes(slide.script);
+    });
+    pptx.writeFile({ fileName: 'Seminario.pptx' });
+  };
+
+  const generatePDF = async () => {
+    if (!presentation) return;
+    setPhase('loading');
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720] });
+      const element = document.getElementById('slide-export-container');
+      if (!element) throw new Error('Container erro');
+      for (let i = 0; i < presentation.slides.length; i++) {
+        setCurrentSlide(i);
+        await new Promise(r => setTimeout(r, 600));
+        const canvas = await html2canvas(element, { scale: 1.5, useCORS: true, logging: false });
+        const imgData = canvas.toDGF0YVVSTCgnaW1hZ2UvanBlZycsIDAuOCk7
+        if (i > 0) doc.addPage([1280, 720], 'landscape');
+        doc.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
+      }
+      doc.save('Seminario.pdf');
+    } catch (e) { setError('Erro PDF'); }
+    finally { setPhase('viewer'); setCurrentSlide(0); }
+  };
+
+  if (phase === 'config') return (
+    <div style={{ padding: '1.5rem', maxWidth: 500, margin: '0 auto' }}>
+      <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1.1rem', color: 'var(--holo-primary)', marginBottom: '1.5rem' }}>📽️ Gerador de Seminário</h2>
+      <div className='glass-card' style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <div onClick={() => fileInputRef.current?.click()} style={{ border: '2px dashed rgba(0,245,255,0.2)', borderRadius: '12px', padding: '1.5rem', textAlign: 'center', cursor: 'pointer' }}>
+          <input type='file' ref={fileInputRef} onChange={(e) => e.target.files?.[0] && setPdfFile(e.target.files[0])} style={{ display: 'none' }} />
+          <FileText size={32} color={pdfFile ? 'var(--holo-primary)' : '#444'} />
+          <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>{pdfFile ? pdfFile.name : 'Escolher PDF'}</p>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1.5rem' }}>
+        {['por_pagina', 'por_topico', 'resumo_inteligente'].map(m => (
+          <button key={m} onClick={() => setMode(m as any)} className={mode === m ? 'btn-primary' : 'btn-secondary'} style={{ fontSize: '0.65rem', padding: '0.5rem' }}>
+            {m.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+      <button className='btn-primary' onClick={handleGenerate} style={{ width: '100%' }}>Gerar com IA</button>
+      {error && <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '1rem' }}>{error}</p>}
+    </div>
+  );
+
+  if (phase === 'loading') return <div style={{ textAlign: 'center', padding: '4rem' }}><RefreshCw className='spin' size={32} /> <p>Processando...</p></div>;
+
+  const current = presentation?.slides[currentSlide];
+  return (
+    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div id='slide-export-container' className='glass-card' style={{ width: '100%', aspectRatio: '16/9', padding: '2rem', background: '#020d1f', border: '1px solid var(--holo-primary)', position: 'relative', display: 'flex', gap: '1.5rem', overflow: 'hidden' }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ color: 'var(--holo-primary)', marginBottom: '1rem' }}>{current?.title}</h3>
+          {current?.bullets ? (
+            <ul style={{ paddingLeft: '1.25rem', color: '#fff' }}>
+              {current.bullets.map((b, i) => <li key={i} style={{ marginBottom: '0.5rem' }}>{b}</li>)}
+            </ul>
+          ) : <p style={{ color: '#fff' }}>{current?.content}</p>}
+        </div>
+        {current?.imageQuery && (
+          <div style={{ width: '35%', borderRadius: '8px', overflow: 'hidden' }}>
+            <img src={'https://source.unsplash.com/400x300/?' + encodeURIComponent(current.imageQuery)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} crossOrigin='anonymous' />
+          </div>
+        )}
+      </div>
+      <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <button onClick={() => setCurrentSlide(s => Math.max(0, s-1))} disabled={currentSlide === 0} className='btn-secondary'>Voltar</button>
+        <div style={{ flex: 1, textAlign: 'center', fontSize: '0.8rem' }}>{currentSlide + 1} / {presentation?.slides.length || 0}</div>
+        <button onClick={() => setCurrentSlide(s => Math.min((presentation?.slides.length||1)-1, s+1))} disabled={currentSlide === (presentation?.slides.length||1)-1} className='btn-secondary'>Avançar</button>
+      </div>
+      <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+        <button onClick={generatePDF} className='btn-secondary' style={{ flex: 1 }}>Ver Tudo (PDF)</button>
+        <button onClick={exportToPPTX} className='btn-primary' style={{ flex: 1 }}>PowerPoint</button>
+        <button onClick={() => setPhase('config')} className='btn-secondary'>X</button>
+      </div>
+      {showNotes && current?.script && (
+        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,245,255,0.05)', borderRadius: '8px', border: '1px solid rgba(0,245,255,0.1)' }}>
+          <p style={{ fontSize: '0.7rem', color: 'var(--holo-primary)', fontWeight: 800, marginBottom: '0.5rem' }}>ROTEIRO:</p>
+          <p style={{ fontSize: '0.85rem', color: '#ccc' }}>{current.script}</p>
+        </div>
+      )}
+    </div>
+  );
+};
