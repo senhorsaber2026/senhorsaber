@@ -5,8 +5,6 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { neon } from '@neondatabase/serverless';
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -16,20 +14,32 @@ const JWT_SECRET = process.env.JWT_SECRET || 'senhor-saber-secret-key-2026';
 app.use(cors());
 app.use(express.json());
 
-// Note: Vercel filesystem is read-only except /tmp. 
-// Files uploaded here will NOT persist across serverless invocations.
+// Multi-part form handling for serverless (limited persistence)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, '/tmp'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const sql = neon(process.env.DATABASE_URL);
+// Lazy SQL client to avoid crash if env is missing during boot
+let sql;
+const getSql = () => {
+  if (!sql) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is not defined in environment variables');
+    }
+    sql = neon(process.env.DATABASE_URL);
+  }
+  return sql;
+};
 
-// Ensure settings table exists with defaults
-const initSettings = async () => {
+// Lazy initialization of settings table
+let isInitialized = false;
+const ensureInitialized = async () => {
+  if (isInitialized) return;
   try {
-    await sql`
+    const db = getSql();
+    await db`
       CREATE TABLE IF NOT EXISTS settings (
         key VARCHAR(100) PRIMARY KEY,
         value TEXT
@@ -41,16 +51,27 @@ const initSettings = async () => {
       { key: 'pix_value', value: '19.90' }
     ];
     for (const d of defaults) {
-      const existing = await sql`SELECT value FROM settings WHERE key = ${d.key}`;
+      const existing = await db`SELECT value FROM settings WHERE key = ${d.key}`;
       if (existing.length === 0 && d.value) {
-        await sql`INSERT INTO settings (key, value) VALUES (${d.key}, ${d.value})`;
+        await db`INSERT INTO settings (key, value) VALUES (${d.key}, ${d.value})`;
       }
     }
-  } catch (e) { console.error('Settings init error:', e.message); }
+    isInitialized = true;
+  } catch (e) { 
+    console.error('Initialization error:', e.message); 
+    // We don't throw here to allow subsequent requests to try again
+  }
 };
 
-// Vercel serverless functions are stateless, but we try to init if needed
-initSettings();
+// Middleware to ensure DB is ready and handle global errors
+const dbReady = async (req, res, next) => {
+  try {
+    await ensureInitialized();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Database connection failed: ' + err.message });
+  }
+};
 
 // --- Auth Middleware ---
 const authenticateToken = (req, res, next) => {
@@ -72,9 +93,12 @@ const isAdmin = (req, res, next) => {
 
 // --- Routes ---
 
-app.get('/api/settings/public', async (req, res) => {
+app.get('/api/health', (req, res) => res.json({ status: 'ok', env: !!process.env.DATABASE_URL }));
+
+app.get('/api/settings/public', dbReady, async (req, res) => {
   try {
-    const result = await sql`SELECT key, value FROM settings WHERE key IN ('global_api_key', 'pix_key', 'pix_value')`;
+    const db = getSql();
+    const result = await db`SELECT key, value FROM settings WHERE key IN ('global_api_key', 'pix_key', 'pix_value')`;
     const settings = result.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
     res.json(settings);
   } catch (error) {
@@ -86,14 +110,17 @@ app.get('/api/settings/public', async (req, res) => {
   }
 });
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', dbReady, async (req, res) => {
   const { name, email } = req.body;
+  if (!name || !email) return res.status(400).json({ error: 'Nome e email são obrigatórios' });
+  
   const login = 'user' + Math.floor(1000 + Math.random() * 9000);
   const rawPassword = Math.random().toString(36).slice(-8);
   const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
   try {
-    const result = await sql`
+    const db = getSql();
+    const result = await db`
       INSERT INTO users (login, password, name, email, status, plan)
       VALUES (${login}, ${hashedPassword}, ${name}, ${email}, 'pending', 'free')
       RETURNING id, login, name, is_admin, status, plan
@@ -104,14 +131,16 @@ app.post('/api/register', async (req, res) => {
       message: 'Usuário registrado com sucesso!' 
     });
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao registrar usuário' });
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Erro ao registrar usuário: ' + error.message });
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', dbReady, async (req, res) => {
   const { login, password } = req.body;
   try {
-    const users = await sql`SELECT * FROM users WHERE login = ${login}`;
+    const db = getSql();
+    const users = await db`SELECT * FROM users WHERE login = ${login}`;
     if (users.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' });
     const user = users[0];
     let isMatch = (user.login === 'admin' && password === 'admin123') || await bcrypt.compare(password, user.password);
@@ -120,27 +149,24 @@ app.post('/api/login', async (req, res) => {
     const { password: _, ...userWithoutPass } = user;
     res.json({ user: userWithoutPass, token });
   } catch (error) {
-    res.status(500).json({ error: 'Erro no login' });
+    res.status(500).json({ error: 'Erro no login: ' + error.message });
   }
 });
 
-app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async (req, res) => {
+app.post('/api/payments/proof', authenticateToken, dbReady, upload.single('proof'), async (req, res) => {
   try {
-    // In Vercel, we don't have a persistent upload folder.
-    // For now, we just acknowledge the upload. 
-    // real implementations should use S3/Cloudinary.
+    const db = getSql();
+    await db`UPDATE users SET status = 'pending' WHERE id = ${req.user.id}`;
     res.json({ message: 'Comprovante recebido! (Ambiente Vercel: persistência de imagem desativada)' });
-    
-    // Still update user status to pending in DB
-    await sql`UPDATE users SET status = 'pending' WHERE id = ${req.user.id}`;
   } catch (error) {
     res.status(500).json({ error: 'Erro ao enviar comprovante' });
   }
 });
 
-app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
+app.get('/api/admin/users', authenticateToken, isAdmin, dbReady, async (req, res) => {
   try {
-    const users = await sql`
+    const db = getSql();
+    const users = await db`
       SELECT u.id, u.login, u.name, u.email, u.plan, u.status, u.is_admin, u.created_at,
              p.proof_url, p.id as payment_id, p.status as payment_status
       FROM users u
@@ -153,23 +179,25 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/approve', authenticateToken, isAdmin, async (req, res) => {
+app.post('/api/admin/approve', authenticateToken, isAdmin, dbReady, async (req, res) => {
   const { userId, action } = req.body;
   try {
+    const db = getSql();
     const status = action === 'approve' ? 'active' : 'blocked';
     const plan = action === 'approve' ? 'premium' : 'free';
-    await sql`UPDATE users SET status = ${status}, plan = ${plan} WHERE id = ${userId}`;
+    await db`UPDATE users SET status = ${status}, plan = ${plan} WHERE id = ${userId}`;
     res.json({ message: 'Ação concluída com sucesso' });
   } catch (error) {
     res.status(500).json({ error: 'Erro na ação' });
   }
 });
 
-app.post('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
+app.post('/api/admin/settings', authenticateToken, isAdmin, dbReady, async (req, res) => {
   const { settings } = req.body;
   try {
+    const db = getSql();
     for (const [key, value] of Object.entries(settings)) {
-      await sql`
+      await db`
         INSERT INTO settings (key, value) VALUES (${key}, ${value})
         ON CONFLICT (key) DO UPDATE SET value = ${value}
       `;
