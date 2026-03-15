@@ -1,21 +1,25 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, MessageCircle, ClipboardList, BookOpen, User, Activity, Presentation } from 'lucide-react';
+import { Home, MessageCircle, ClipboardList, BookOpen, User, Activity, Presentation, ShieldCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { TabId } from '../types';
 
-const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'home', label: 'Início', icon: <Home size={20} /> },
-  { id: 'perguntas', label: 'Perguntas', icon: <MessageCircle size={20} /> },
-  { id: 'simulados', label: 'Simulados', icon: <ClipboardList size={20} /> },
-  { id: 'estudos', label: 'Estudos', icon: <BookOpen size={20} /> },
-  { id: 'laboratorio', label: 'Laboratório', icon: <Activity size={20} /> },
-  { id: 'seminario', label: 'Seminário', icon: <Presentation size={20} /> },
-  { id: 'perfil', label: 'Perfil', icon: <User size={20} /> },
-];
-
 export const BottomNav: React.FC = () => {
-  const { activeTab, setActiveTab } = useApp();
+  const { activeTab, setActiveTab, userProfile } = useApp();
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'home', label: 'Início', icon: <Home size={20} /> },
+    { id: 'perguntas', label: 'Perguntas', icon: <MessageCircle size={20} /> },
+    { id: 'simulados', label: 'Simulados', icon: <ClipboardList size={20} /> },
+    { id: 'estudos', label: 'Estudos', icon: <BookOpen size={20} /> },
+    { id: 'laboratorio', label: 'Laboratório', icon: <Activity size={20} /> },
+    { id: 'seminario', label: 'Seminário', icon: <Presentation size={20} /> },
+    { id: 'perfil', label: 'Perfil', icon: <User size={20} /> },
+  ];
+
+  if (userProfile?.isAdmin) {
+    tabs.push({ id: 'admin', label: 'Admin', icon: <ShieldCheck size={20} /> });
+  }
 
   return (
     <nav style={{

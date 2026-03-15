@@ -48,7 +48,8 @@ const callUniversalAI = async (apiKey: string, baseUrl: string, modelId: string,
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `Erro na API Universal: ${response.status}`);
+    const errorMsg = errorData.error?.message || `Status: ${response.status}`;
+    throw new Error(`Erro na API: ${errorMsg}`);
   }
 
   const data = await response.json();

@@ -29,8 +29,9 @@ export const FlashcardsScreen: React.FC = () => {
       newCards.forEach(c => addFlashcard(c));
       setCards(prev => [...prev, ...newCards]);
       setTopic('');
-    } catch {
-      // ignore
+    } catch (error: any) {
+      console.error('Erro ao gerar flashcards:', error);
+      alert(`Erro ao gerar flashcards: ${error.message || 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
     }

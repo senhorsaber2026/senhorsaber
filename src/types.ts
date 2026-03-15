@@ -49,6 +49,10 @@ export interface UserProfile {
   simuladosToday: number;
   totalScore: number;
   streak: number;
+  login?: string;
+  status: 'active' | 'pending' | 'blocked';
+  isAdmin: boolean;
+  token?: string;
 }
 
 export interface OraclePrediction {
@@ -57,7 +61,7 @@ export interface OraclePrediction {
   probabilities: { label: string; prob: number; color: string }[];
 }
 
-export type TabId = 'home' | 'perguntas' | 'simulados' | 'estudos' | 'laboratorio' | 'perfil' | 'oraculo' | 'previsao' | 'seminario';
+export type TabId = 'home' | 'perguntas' | 'simulados' | 'estudos' | 'laboratorio' | 'perfil' | 'oraculo' | 'previsao' | 'seminario' | 'admin';
 
 export interface Slide {
   type: 'capa' | 'introducao' | 'conteudo' | 'conclusao';

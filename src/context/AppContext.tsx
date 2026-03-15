@@ -12,7 +12,11 @@ interface AppContextType {
   addFlashcard: (card: Flashcard) => void;
   studySubjects: StudySubject[];
   setStudySubjects: (subjects: StudySubject[]) => void;
-  userProfile: UserProfile;
+  userProfile: UserProfile | null;
+  setUserProfile: (p: UserProfile | null) => void;
+  login: (credentials: { login: string, password: string }) => Promise<void>;
+  register: (data: { name: string, email: string }) => Promise<{ login: string, password: string }>;
+  logout: () => void;
   setPlan: (plan: 'free' | 'premium') => void;
   clearChat: () => void;
   apiKey: string;
@@ -23,6 +27,8 @@ interface AppContextType {
   setCustomBaseUrl: (url: string) => void;
   customModelId: string;
   setCustomModelId: (id: string) => void;
+  estudosSubTab: 'plano' | 'pdf' | 'flashcards';
+  setEstudosSubTab: (sub: 'plano' | 'pdf' | 'flashcards') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -36,36 +42,75 @@ const DEFAULT_SUBJECTS: StudySubject[] = [
   { id: '6', name: 'Inglês', progress: 0, icon: '🌐', color: '#ef4444' },
 ];
 
-const DEFAULT_PROFILE: UserProfile = {
-  name: 'Usuário',
-  email: 'usuario@saber.com',
-  plan: 'free',
-  questionsToday: 0,
-  simuladosToday: 0,
-  totalScore: 0,
-  streak: 0,
-};
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [activeTab, setActiveTab] = useState('home');
+  const [estudosSubTab, setEstudosSubTab] = useState<'plano' | 'pdf' | 'flashcards'>('plano');
   const [chatHistory, setChatHistory] = useState<Message[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [studySubjects, setStudySubjects] = useState<StudySubject[]>(DEFAULT_SUBJECTS);
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('user_profile');
-    return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('user_profile_real');
+    return saved ? JSON.parse(saved) : null;
   });
   
+  const API_URL = 'http://localhost:3001/api';
+
   const setPlan = (plan: 'free' | 'premium') => {
     setUserProfile(prev => {
+      if (!prev) return null;
       const updated = { ...prev, plan };
-      localStorage.setItem('user_profile', JSON.stringify(updated));
+      localStorage.setItem('user_profile_real', JSON.stringify(updated));
       return updated;
     });
   };
+
+  const login = async (credentials: { login: string, password: string }) => {
+    const res = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro no login');
+    
+    const profile = {
+      ...data.user,
+      token: data.token,
+      isAdmin: data.user.is_admin,
+      plan: data.user.plan || 'free',
+      status: data.user.status || 'active',
+      questionsToday: 0,
+      simuladosToday: 0,
+      totalScore: 0,
+      streak: 1
+    };
+    
+    setUserProfile(profile);
+    localStorage.setItem('user_profile_real', JSON.stringify(profile));
+  };
+
+  const register = async (userData: { name: string, email: string }) => {
+    const res = await fetch(`${API_URL}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro no registro');
+    return data.credentials;
+  };
+
+  const logout = () => {
+    setUserProfile(null);
+    localStorage.removeItem('user_profile_real');
+    setActiveTab('home');
+  };
   const clearChat = () => setChatHistory([]);
   
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key')?.trim() || 'gsk-eyJjb2dlbl9pZCI6IjEwNzc2MmQ1LTEwNjUtNGJhMS05ZGY0LWRmZGZiNmNhNTA2MCIsImtleV9pZCI6IjliNDI4YTkyLWNmYjItNDYzYi1hODI0LWZiYTc2ZmIwNzNkMiIsImN0aW1lIjoxNzczNTk0MTUxLCJjbGF1ZGVfYmlnX21vZGVsIjpudWxsLCJjbGF1ZGVfbWlkZGxlX21vZGVsIjpudWxsLCJjbGF1ZGVfc21hbGxfbW9kZWwiOm51bGx9fKxX6ZQYjKFGNoiLL7xD_2A201jJloA63sDM2WKOZged');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key')?.trim() || import.meta.env.VITE_GROQ_API_KEY || '');
   const [aiProvider, setAiProvider] = useState<AIProvider>((localStorage.getItem('ai_provider') as AIProvider) || 'universal');
   const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem('custom_base_url') || 'https://api.groq.com/openai/v1');
   const [customModelId, setCustomModelId] = useState(localStorage.getItem('custom_model_id') || 'llama-3.3-70b-versatile');
@@ -100,11 +145,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       chatHistory, addMessage, clearChat,
       flashcards, addFlashcard,
       studySubjects, setStudySubjects,
-      userProfile, setPlan,
+      userProfile, setUserProfile, setPlan,
+      login, register, logout,
       apiKey, setApiKey: handleSetApiKey,
       aiProvider, setAiProvider: handleSetAiProvider,
       customBaseUrl, setCustomBaseUrl: handleSetCustomBaseUrl,
       customModelId, setCustomModelId: handleSetCustomModelId,
+      estudosSubTab, setEstudosSubTab,
     }}>
       {children}
     </AppContext.Provider>

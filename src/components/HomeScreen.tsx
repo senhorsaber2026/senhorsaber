@@ -23,7 +23,7 @@ const launchers: HomeLauncher[] = [
 ];
 
 export const HomeScreen: React.FC = () => {
-  const { userProfile, chatHistory, setActiveTab } = useApp();
+  const { userProfile, chatHistory, setActiveTab, setEstudosSubTab } = useApp();
   const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);
 
   React.useEffect(() => {
@@ -46,7 +46,12 @@ export const HomeScreen: React.FC = () => {
   }, [userProfile.name]);
 
   const handleLaunch = (tab: string) => {
-    setActiveTab(tab === 'pdf' ? 'estudos' : tab);
+    if (tab === 'pdf' || tab === 'flashcards' || tab === 'plano') {
+      setEstudosSubTab(tab as any);
+      setActiveTab('estudos');
+    } else {
+      setActiveTab(tab);
+    }
   };
 
   const welcomeText = `Seja bem-vindo meu aluno ${userProfile.name && userProfile.name !== 'Usuário' ? userProfile.name : ''}, o que vamos fazer hoje?`;

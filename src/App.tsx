@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
@@ -12,6 +12,9 @@ import { ProfileScreen } from './components/ProfileScreen';
 import { AnatomyLab } from './components/AnatomyLab';
 import { OraculoScreen } from './components/OraculoScreen';
 import { PrevisaoScreen } from './components/PrevisaoScreen';
+import { PaymentScreen } from './components/PaymentScreen';
+import { AdminScreen } from './components/AdminScreen';
+import { LoginScreen } from './components/LoginScreen';
 import { SeminarScreen } from './modules/seminar/SeminarRoot';
 import './index.css';
 
@@ -23,7 +26,7 @@ const pageVariants = {
 
 // Estudos tab has sub-navigation
 const EstudosScreen: React.FC = () => {
-  const [subTab, setSubTab] = useState<'plano' | 'pdf' | 'flashcards'>('plano');
+  const { estudosSubTab, setEstudosSubTab } = useApp();
 
   const tabs = [
     { id: 'plano' as const, label: 'Plano' },
@@ -39,21 +42,21 @@ const EstudosScreen: React.FC = () => {
         background: 'rgba(2,13,31,0.5)', backdropFilter: 'blur(10px)',
       }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+          <button key={t.id} onClick={() => setEstudosSubTab(t.id)} style={{
             flex: 1, padding: '0.5rem 0.5rem', borderRadius: '8px 8px 0 0',
-            border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: subTab === t.id ? 700 : 400,
-            background: subTab === t.id ? 'rgba(0,245,255,0.08)' : 'transparent',
-            color: subTab === t.id ? 'var(--holo-primary)' : 'var(--text-muted)',
-            borderBottom: subTab === t.id ? '2px solid var(--holo-primary)' : '2px solid transparent',
+            border: 'none', cursor: 'pointer', fontSize: '0.78rem', fontWeight: estudosSubTab === t.id ? 700 : 400,
+            background: estudosSubTab === t.id ? 'rgba(0,245,255,0.08)' : 'transparent',
+            color: estudosSubTab === t.id ? 'var(--holo-primary)' : 'var(--text-muted)',
+            borderBottom: estudosSubTab === t.id ? '2px solid var(--holo-primary)' : '2px solid transparent',
             transition: 'all 0.2s',
           }}>{t.label}</button>
         ))}
       </div>
       <AnimatePresence mode="wait">
-        <motion.div key={subTab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
-          {subTab === 'plano' && <StudyPlanScreen />}
-          {subTab === 'pdf' && <PDFReader />}
-          {subTab === 'flashcards' && <FlashcardsScreen />}
+        <motion.div key={estudosSubTab} variants={pageVariants} initial="initial" animate="animate" exit="exit">
+          {estudosSubTab === 'plano' && <StudyPlanScreen />}
+          {estudosSubTab === 'pdf' && <PDFReader />}
+          {estudosSubTab === 'flashcards' && <FlashcardsScreen />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -61,7 +64,15 @@ const EstudosScreen: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
-  const { activeTab } = useApp();
+  const { activeTab, userProfile } = useApp();
+
+  if (!userProfile) {
+    return <LoginScreen />;
+  }
+
+  if (userProfile.status === 'pending') {
+    return <PaymentScreen />;
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', maxWidth: 1000, margin: '0 auto' }}>
@@ -83,6 +94,7 @@ const AppContent: React.FC = () => {
               oraculo: '🔮 Oráculo dos Concursos',
               previsao: '🧠 IA Previsora',
               seminario: '📽️ Gerador de Seminário',
+              admin: '🛡️ Painel Administrador',
             }[activeTab]}
           </h1>
         </div>
@@ -112,6 +124,7 @@ const AppContent: React.FC = () => {
             {activeTab === 'oraculo' && <OraculoScreen />}
             {activeTab === 'previsao' && <PrevisaoScreen />}
             {activeTab === 'seminario' && <SeminarScreen />}
+            {activeTab === 'admin' && <AdminScreen />}
           </motion.div>
         </AnimatePresence>
       </main>

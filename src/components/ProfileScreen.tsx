@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Star, Flame, Trophy, Lock, Crown, Check, Settings, Key, RefreshCw } from 'lucide-react';
+import { User, Star, Flame, Trophy, Lock, Crown, Check, Settings, Key, RefreshCw, LogOut } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useApp } from '../context/AppContext';
 
 export const ProfileScreen: React.FC = () => {
-  const { userProfile, setPlan, apiKey, setApiKey, aiProvider, setAiProvider, customBaseUrl, setCustomBaseUrl, customModelId, setCustomModelId } = useApp();
+  const { userProfile, setPlan, apiKey, setApiKey, aiProvider, setAiProvider, customBaseUrl, setCustomBaseUrl, customModelId, setCustomModelId, logout } = useApp();
   const [showApiInput, setShowApiInput] = useState(false);
   const [tempKey, setTempKey] = useState(apiKey);
   const [tempBaseUrl, setTempBaseUrl] = useState(customBaseUrl);
   const [tempModelId, setTempModelId] = useState(customModelId);
 
   const [isActivating, setIsActivating] = useState(false);
+
+  // ProfileScreen is only rendered when userProfile is non-null (guarded in App.tsx)
+  if (!userProfile) return null;
 
   const saveSettings = () => {
     setApiKey(tempKey);
@@ -22,7 +25,6 @@ export const ProfileScreen: React.FC = () => {
 
   const handleSubscribe = () => {
     setIsActivating(true);
-    // Simula uma validação real de pagamento/processamento
     setTimeout(() => {
       setPlan('premium');
       setIsActivating(false);
@@ -54,7 +56,8 @@ export const ProfileScreen: React.FC = () => {
         <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
           {userProfile.name}
         </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{userProfile.email}</p>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.25rem' }}>{userProfile.email}</p>
+        {userProfile.login && <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem' }}>Login: <span style={{ color: 'var(--holo-primary)', fontFamily: 'monospace' }}>{userProfile.login}</span></p>}
         {isPremium ? (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '99px', padding: '0.25rem 0.75rem', color: '#f59e0b', fontSize: '0.75rem', fontWeight: 700 }}>
             <Crown size={12} />PREMIUM
@@ -192,10 +195,19 @@ export const ProfileScreen: React.FC = () => {
 
       {/* Lock features */}
       {!isPremium && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '1.25rem' }}>
           <Lock size={12} />Recursos ilimitados disponíveis no plano Premium
         </div>
       )}
+
+      {/* Logout */}
+      <button
+        onClick={logout}
+        className="btn-secondary"
+        style={{ width: '100%', justifyContent: 'center', borderColor: '#ef4444', color: '#ef4444', marginTop: '0.5rem' }}
+      >
+        <LogOut size={14} /> Sair da Conta
+      </button>
     </div>
   );
 };
