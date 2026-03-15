@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, FileDown, Presentation as PptIcon, X } from 'lucide-react';
 import type { Presentation } from './SeminarTypes';
 
