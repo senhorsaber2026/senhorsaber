@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { Message, Flashcard, StudySubject, UserProfile } from '../types';
 
 export type AIProvider = 'gemini' | 'universal';
@@ -111,6 +111,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const clearChat = () => setChatHistory([]);
   
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key')?.trim() || import.meta.env.VITE_GROQ_API_KEY || '');
+
+  // Fetch global API key from server on startup (overrides only if no personal key set)
+  useEffect(() => {
+    const personalKey = localStorage.getItem('gemini_api_key')?.trim();
+    if (!personalKey) {
+      fetch('http://localhost:3001/api/settings/apikey')
+        .then(r => r.json())
+        .then(data => { if (data.apiKey) setApiKey(data.apiKey); })
+        .catch(() => {}); // silently fail if server is offline
+    }
+  }, []);
   const [aiProvider, setAiProvider] = useState<AIProvider>((localStorage.getItem('ai_provider') as AIProvider) || 'universal');
   const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem('custom_base_url') || 'https://api.groq.com/openai/v1');
   const [customModelId, setCustomModelId] = useState(localStorage.getItem('custom_model_id') || 'llama-3.3-70b-versatile');

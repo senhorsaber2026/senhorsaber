@@ -23,6 +23,23 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 const sql = neon(process.env.DATABASE_URL);
 
+// Ensure settings table exists
+(async () => {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS settings (
+        key VARCHAR(100) PRIMARY KEY,
+        value TEXT
+      )
+    `;
+    // Default global API key from env
+    const existing = await sql`SELECT value FROM settings WHERE key = 'global_api_key'`;
+    if (existing.length === 0 && process.env.VITE_GROQ_API_KEY) {
+      await sql`INSERT INTO settings (key, value) VALUES ('global_api_key', ${process.env.VITE_GROQ_API_KEY})`;
+    }
+  } catch (e) { console.error('Settings init error:', e.message); }
+})();
+
 // --- Auth Middleware ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -46,15 +63,24 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
-// --- Routes ---
+// --- Public Routes ---
 
-// Register
+// Get global API key (public endpoint so frontend can load it)
+app.get('/api/settings/apikey', async (req, res) => {
+  try {
+    const result = await sql`SELECT value FROM settings WHERE key = 'global_api_key'`;
+    res.json({ apiKey: result[0]?.value || '' });
+  } catch (error) {
+    res.json({ apiKey: process.env.VITE_GROQ_API_KEY || '' });
+  }
+});
+
+// Register - status starts as 'pending' to require payment
 app.post('/api/register', async (req, res) => {
   const { name, email } = req.body;
   
-  // Auto-generate credentials
   const login = 'user' + Math.floor(1000 + Math.random() * 9000);
   const rawPassword = Math.random().toString(36).slice(-8);
   const hashedPassword = await bcrypt.hash(rawPassword, 10);
@@ -62,14 +88,14 @@ app.post('/api/register', async (req, res) => {
   try {
     const result = await sql`
       INSERT INTO users (login, password, name, email, status, plan)
-      VALUES (${login}, ${hashedPassword}, ${name}, ${email}, 'active', 'free')
-      RETURNING id, login, name, is_admin
+      VALUES (${login}, ${hashedPassword}, ${name}, ${email}, 'pending', 'free')
+      RETURNING id, login, name, is_admin, status, plan
     `;
     
     res.json({ 
       user: result[0], 
       credentials: { login, password: rawPassword },
-      message: 'Usuário registrado com sucesso. Guarde suas credenciais!' 
+      message: 'Usuário registrado! Guarde suas credenciais e envie o comprovante do PIX para liberar o acesso.' 
     });
   } catch (error) {
     console.error(error);
@@ -87,7 +113,6 @@ app.post('/api/login', async (req, res) => {
 
     const user = users[0];
     
-    // Check if it's the default admin (plaintext for now)
     let isMatch = false;
     if (user.login === 'admin' && password === 'admin123') {
       isMatch = true;
@@ -98,7 +123,6 @@ app.post('/api/login', async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: 'Senha incorreta' });
 
     const token = jwt.sign({ id: user.id, login: user.login, is_admin: user.is_admin }, JWT_SECRET);
-    
     const { password: _, ...userWithoutPass } = user;
     res.json({ user: userWithoutPass, token });
   } catch (error) {
@@ -110,19 +134,29 @@ app.post('/api/login', async (req, res) => {
 // Payment Proof Upload
 app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async (req, res) => {
   try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    
     const proof_url = `/uploads/${req.file.filename}`;
+    
+    // Remove old pending payment if any
+    await sql`DELETE FROM payments WHERE user_id = ${req.user.id} AND status = 'pending'`;
+    
+    // Insert new payment record
     await sql`
       INSERT INTO payments (user_id, proof_url, status)
       VALUES (${req.user.id}, ${proof_url}, 'pending')
     `;
     
-    // Set user status to pending
+    // Update user status to 'waiting_approval'
     await sql`UPDATE users SET status = 'pending' WHERE id = ${req.user.id}`;
     
-    res.json({ message: 'Comprovante enviado com sucesso. Aguarde aprovação.' });
+    res.json({ 
+      message: 'Comprovante enviado com sucesso! Aguarde aprovação do administrador.',
+      proof_url 
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Erro ao enviar comprovante' });
+    res.status(500).json({ error: 'Erro ao enviar comprovante: ' + error.message });
   }
 });
 
@@ -130,9 +164,10 @@ app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   try {
     const users = await sql`
-      SELECT u.*, p.proof_url, p.id as payment_id, p.status as payment_status
+      SELECT u.id, u.login, u.name, u.email, u.plan, u.status, u.is_admin, u.created_at,
+             p.proof_url, p.id as payment_id, p.status as payment_status
       FROM users u
-      LEFT JOIN payments p ON u.id = p.user_id
+      LEFT JOIN payments p ON u.id = p.user_id AND p.status = 'pending'
       ORDER BY u.created_at DESC
     `;
     res.json(users);
@@ -142,26 +177,44 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-// Admin: Approve User
+// Admin: Approve/Block User
 app.post('/api/admin/approve', authenticateToken, isAdmin, async (req, res) => {
-  const { userId, action } = req.body; // action: 'approve' | 'reject'
+  const { userId, action } = req.body;
   
   try {
     const status = action === 'approve' ? 'active' : 'blocked';
     const plan = action === 'approve' ? 'premium' : 'free';
     
     await sql`UPDATE users SET status = ${status}, plan = ${plan} WHERE id = ${userId}`;
+    
     if (action === 'approve') {
-       await sql`UPDATE payments SET status = 'approved' WHERE user_id = ${userId}`;
+      await sql`UPDATE payments SET status = 'approved' WHERE user_id = ${userId} AND status = 'pending'`;
     }
     
-    res.json({ message: `Usuário ${action === 'approve' ? 'aprovado' : 'rejeitado'} com sucesso.` });
+    res.json({ message: `Usuário ${action === 'approve' ? 'aprovado' : 'bloqueado'} com sucesso.` });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao processar ação' });
   }
 });
 
+// Admin: Update Global API Key
+app.post('/api/admin/apikey', authenticateToken, isAdmin, async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey) return res.status(400).json({ error: 'API Key não pode estar vazia' });
+  
+  try {
+    await sql`
+      INSERT INTO settings (key, value) VALUES ('global_api_key', ${apiKey})
+      ON CONFLICT (key) DO UPDATE SET value = ${apiKey}
+    `;
+    res.json({ message: 'Chave API global atualizada com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao atualizar chave API' });
+  }
+});
+
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`✅ Server running at http://localhost:${port}`);
 });
