@@ -28,7 +28,7 @@ export const PaymentScreen: React.FC = () => {
     formData.append('proof', file);
 
     try {
-      const res = await fetch('http://localhost:3001/api/payments/proof', {
+      const res = await fetch('/api/payments/proof', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${userProfile.token}` },
         body: formData

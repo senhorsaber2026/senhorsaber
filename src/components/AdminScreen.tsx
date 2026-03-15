@@ -22,7 +22,7 @@ export const AdminScreen: React.FC = () => {
     if (!userProfile?.token) return;
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/admin/users', {
+      const res = await fetch('/api/admin/users', {
         headers: { 'Authorization': `Bearer ${userProfile.token}` }
       });
       const data = await res.json();
@@ -37,7 +37,7 @@ export const AdminScreen: React.FC = () => {
 
   const fetchCurrentSettings = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/settings/public');
+      const res = await fetch('/api/settings/public');
       const data = await res.json();
       setGlobalKey(data.global_api_key || '');
       setPixKey(data.pix_key || '');
@@ -52,7 +52,7 @@ export const AdminScreen: React.FC = () => {
 
   const handleAction = async (userId: number, action: 'approve' | 'reject') => {
     try {
-      const res = await fetch('http://localhost:3001/api/admin/approve', {
+      const res = await fetch('/api/admin/approve', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ export const AdminScreen: React.FC = () => {
     setKeySaving(true);
     setKeyMsg('');
     try {
-      const res = await fetch('http://localhost:3001/api/admin/settings', {
+      const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ export const AdminScreen: React.FC = () => {
                       <Eye size={13} color="var(--holo-primary)" />
                       <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Comprovante enviado</span>
                     </div>
-                    <a href={`http://localhost:3001${u.proof_url}`} target="_blank" rel="noreferrer"
+                      <a href={u.proof_url} target="_blank" rel="noreferrer"
                       style={{ fontSize: '0.72rem', color: 'var(--holo-primary)', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}>
                       Ver <ExternalLink size={11} />
                     </a>

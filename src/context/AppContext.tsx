@@ -55,7 +55,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : null;
   });
   
-  const API_URL = 'http://localhost:3001/api';
+  const API_URL = '/api';
 
   const setPlan = (plan: 'free' | 'premium') => {
     setUserProfile(prev => {
@@ -116,7 +116,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch global settings from server on startup
   useEffect(() => {
-    fetch('http://localhost:3001/api/settings/public')
+    fetch('/api/settings/public')
       .then(r => r.json())
       .then(data => { 
         if (data.global_api_key && !localStorage.getItem('gemini_api_key')) {
