@@ -29,6 +29,7 @@ interface AppContextType {
   setCustomModelId: (id: string) => void;
   estudosSubTab: 'plano' | 'pdf' | 'flashcards';
   setEstudosSubTab: (sub: 'plano' | 'pdf' | 'flashcards') => void;
+  pixInfo: { key: string, value: string };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -111,16 +112,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const clearChat = () => setChatHistory([]);
   
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key')?.trim() || import.meta.env.VITE_GROQ_API_KEY || '');
+  const [pixInfo, setPixInfo] = useState({ key: 'pix@senhorsaber.com.br', value: '19,90' });
 
-  // Fetch global API key from server on startup (overrides only if no personal key set)
+  // Fetch global settings from server on startup
   useEffect(() => {
-    const personalKey = localStorage.getItem('gemini_api_key')?.trim();
-    if (!personalKey) {
-      fetch('http://localhost:3001/api/settings/apikey')
-        .then(r => r.json())
-        .then(data => { if (data.apiKey) setApiKey(data.apiKey); })
-        .catch(() => {}); // silently fail if server is offline
-    }
+    fetch('http://localhost:3001/api/settings/public')
+      .then(r => r.json())
+      .then(data => { 
+        if (data.global_api_key && !localStorage.getItem('gemini_api_key')) {
+          setApiKey(data.global_api_key);
+        }
+        if (data.pix_key || data.pix_value) {
+          setPixInfo({ 
+            key: data.pix_key || 'pix@senhorsaber.com.br', 
+            value: data.pix_value || '19,90' 
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
   const [aiProvider, setAiProvider] = useState<AIProvider>((localStorage.getItem('ai_provider') as AIProvider) || 'universal');
   const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem('custom_base_url') || 'https://api.groq.com/openai/v1');
@@ -163,6 +172,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       customBaseUrl, setCustomBaseUrl: handleSetCustomBaseUrl,
       customModelId, setCustomModelId: handleSetCustomModelId,
       estudosSubTab, setEstudosSubTab,
+      pixInfo,
     }}>
       {children}
     </AppContext.Provider>

@@ -3,11 +3,8 @@ import { motion } from 'framer-motion';
 import { Upload, Check, AlertCircle, RefreshCw, QrCode, Copy, LogOut, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-const PIX_KEY = 'pix@senhorsaber.com.br';
-const PIX_VALUE = 'R$ 19,90';
-
 export const PaymentScreen: React.FC = () => {
-  const { userProfile, logout, setUserProfile } = useApp();
+  const { userProfile, logout, setUserProfile, pixInfo } = useApp();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -15,7 +12,7 @@ export const PaymentScreen: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
   const copyPix = () => {
-    navigator.clipboard.writeText(PIX_KEY);
+    navigator.clipboard.writeText(pixInfo.key);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -83,12 +80,12 @@ export const PaymentScreen: React.FC = () => {
             <div style={{ background: 'linear-gradient(135deg, rgba(0,245,255,0.05), rgba(168,85,247,0.05))', border: '1px solid rgba(0,245,255,0.2)', borderRadius: '12px', padding: '1rem', marginBottom: '1.25rem', textAlign: 'center' }}>
               <QrCode size={28} style={{ color: 'var(--holo-primary)', margin: '0 auto 0.5rem', display: 'block' }} />
               <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Valor da Assinatura Mensal</p>
-              <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>{PIX_VALUE}</p>
+              <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>R$ {pixInfo.value}</p>
               <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Acesso ilimitado a todos os recursos por 30 dias</p>
               
               <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>Chave PIX (e-mail)</p>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input className="input-holo" readOnly value={PIX_KEY}
+                <input className="input-holo" readOnly value={pixInfo.key}
                   style={{ flex: 1, fontSize: '0.85rem', textAlign: 'center', background: 'rgba(0,245,255,0.04)' }} />
                 <button className="btn-primary" onClick={copyPix} style={{ padding: '0.5rem 0.75rem', minWidth: 'auto' }}>
                   {copied ? <Check size={14} /> : <Copy size={14} />}

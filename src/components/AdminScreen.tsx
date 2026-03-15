@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Eye, ExternalLink, RefreshCw, ShieldCheck, Key, Save } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, ExternalLink, RefreshCw, ShieldCheck, Key, Save, DollarSign } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AdminScreen: React.FC = () => {
-  const { userProfile, apiKey } = useApp();
+  const { userProfile } = useApp();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Settings state
   const [globalKey, setGlobalKey] = useState('');
+  const [pixKey, setPixKey] = useState('');
+  const [pixValue, setPixValue] = useState('');
+  
   const [keySaving, setKeySaving] = useState(false);
   const [keyMsg, setKeyMsg] = useState('');
   const [activeSection, setActiveSection] = useState<'users' | 'settings'>('users');
@@ -30,17 +35,19 @@ export const AdminScreen: React.FC = () => {
     }
   };
 
-  const fetchCurrentKey = async () => {
+  const fetchCurrentSettings = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/settings/apikey');
+      const res = await fetch('http://localhost:3001/api/settings/public');
       const data = await res.json();
-      setGlobalKey(data.apiKey || '');
+      setGlobalKey(data.global_api_key || '');
+      setPixKey(data.pix_key || '');
+      setPixValue(data.pix_value || '');
     } catch {}
   };
 
   useEffect(() => {
     fetchUsers();
-    fetchCurrentKey();
+    fetchCurrentSettings();
   }, []);
 
   const handleAction = async (userId: number, action: 'approve' | 'reject') => {
@@ -60,22 +67,27 @@ export const AdminScreen: React.FC = () => {
     }
   };
 
-  const saveGlobalKey = async () => {
-    if (!globalKey.trim()) return;
+  const saveSettings = async () => {
     setKeySaving(true);
     setKeyMsg('');
     try {
-      const res = await fetch('http://localhost:3001/api/admin/apikey', {
+      const res = await fetch('http://localhost:3001/api/admin/settings', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${userProfile?.token}`
         },
-        body: JSON.stringify({ apiKey: globalKey.trim() })
+        body: JSON.stringify({ 
+          settings: {
+            global_api_key: globalKey.trim(),
+            pix_key: pixKey.trim(),
+            pix_value: pixValue.trim()
+          }
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setKeyMsg('✅ Chave atualizada! Todos os usuários sem chave pessoal usarão a nova key.');
+      setKeyMsg('✅ Configurações atualizadas com sucesso!');
     } catch (err: any) {
       setKeyMsg('❌ ' + err.message);
     } finally {
@@ -102,23 +114,50 @@ export const AdminScreen: React.FC = () => {
 
       {activeSection === 'settings' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
-          <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.8rem', color: 'var(--holo-secondary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Key size={14} /> Chave API Global (afeta todos os usuários)
-          </p>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-            Esta chave será usada por todos os usuários que não configuraram uma chave pessoal.
-          </p>
-          <input
-            className="input-holo"
-            type="password"
-            placeholder="gsk_..."
-            value={globalKey}
-            onChange={e => setGlobalKey(e.target.value)}
-            style={{ marginBottom: '0.75rem', fontSize: '0.85rem' }}
-          />
-          {keyMsg && <p style={{ fontSize: '0.75rem', marginBottom: '0.75rem', color: keyMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{keyMsg}</p>}
-          <button className="btn-primary" onClick={saveGlobalKey} disabled={keySaving || !globalKey.trim()} style={{ width: '100%', justifyContent: 'center' }}>
-            {keySaving ? <RefreshCw className="animate-spin" size={14} /> : <><Save size={14} /> Salvar e Aplicar para Todos</>}
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.8rem', color: 'var(--holo-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Key size={14} /> Chave API Global
+            </p>
+            <input
+              className="input-holo"
+              type="password"
+              placeholder="gsk_..."
+              value={globalKey}
+              onChange={e => setGlobalKey(e.target.value)}
+              style={{ fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.8rem', color: 'var(--holo-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <DollarSign size={14} /> Chave PIX do Vendor
+            </p>
+            <input
+              className="input-holo"
+              placeholder="Ex: seu-pix@email.com"
+              value={pixKey}
+              onChange={e => setPixKey(e.target.value)}
+              style={{ fontSize: '0.85rem' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.8rem', color: 'var(--holo-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <DollarSign size={14} /> Valor Assinatura (Ex: 19,90)
+            </p>
+            <input
+              className="input-holo"
+              placeholder="19,90"
+              value={pixValue}
+              onChange={e => setPixValue(e.target.value)}
+              style={{ fontSize: '0.85rem' }}
+            />
+          </div>
+
+          {keyMsg && <p style={{ fontSize: '0.75rem', marginBottom: '1rem', color: keyMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{keyMsg}</p>}
+          <button className="btn-primary" onClick={saveSettings} disabled={keySaving} style={{ width: '100%', justifyContent: 'center' }}>
+            {keySaving ? <RefreshCw className="animate-spin" size={14} /> : <><Save size={14} /> Salvar Tudo</>}
           </button>
         </motion.div>
       )}
@@ -137,7 +176,6 @@ export const AdminScreen: React.FC = () => {
                   <div>
                     <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{u.name || 'Sem nome'}</p>
                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Login: <span style={{ color: 'var(--holo-primary)', fontFamily: 'monospace' }}>{u.login}</span></p>
-                    {u.email && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{u.email}</p>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{
