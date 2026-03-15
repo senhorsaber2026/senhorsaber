@@ -5,6 +5,8 @@ import { useApp } from '../context/AppContext';
 import { getOrganExplanation } from '../services/aiService';
 import confetti from 'canvas-confetti';
 
+import { senhorSaberSpeak } from '../services/ttsService';
+
 // --- Types ---
 interface OrganData {
   id: string;
@@ -65,9 +67,7 @@ export const AnatomyLab: React.FC = () => {
         setQuizFeedback({ correct: true, message: `Excelente! Este é exatamente o ${organ.name}.` });
         confetti({ particleCount: 50, spread: 60, colors: ['#00f5ff', '#a855f7'] });
         
-        const utterance = new SpeechSynthesisUtterance("Excelente! Você identificou corretamente.");
-        utterance.lang = 'pt-BR';
-        if ('speechSynthesis' in window) window.speechSynthesis.speak(utterance);
+        senhorSaberSpeak("Excelente! Você identificou corretamente.");
         
         setTimeout(() => startNewQuiz(), 2000);
       } else {
@@ -83,13 +83,7 @@ export const AnatomyLab: React.FC = () => {
       const info = await getOrganExplanation(config, organ.name, organ.system);
       setOrganInfo({ id: organ.id, ...info });
 
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(`Senhor Saber explica: o ${info.name} é parte do ${organ.system}. ${info.function}. ${info.ai_comment}`);
-        utterance.lang = 'pt-BR';
-        utterance.pitch = 0.9;
-        window.speechSynthesis.speak(utterance);
-      }
+      senhorSaberSpeak(`Senhor Saber explica: o ${info.name} é parte do ${organ.system}. ${info.function}. ${info.ai_comment}`);
     } catch (e) {
       console.error(e);
     } finally {

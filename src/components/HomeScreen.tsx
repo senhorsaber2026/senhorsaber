@@ -7,6 +7,8 @@ import {
 import { Avatar } from './Avatar';
 import { useApp } from '../context/AppContext';
 
+import { senhorSaberSpeak, stopSpeaking } from '../services/ttsService';
+
 type HomeLauncher = { icon: React.ReactNode; label: string; desc: string; tab: string; color: string; glow: string };
 
 const launchers: HomeLauncher[] = [
@@ -27,33 +29,20 @@ export const HomeScreen: React.FC = () => {
   React.useEffect(() => {
     // Bem-vindo greeting with Audio
     const speakWelcome = () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        
-        const name = userProfile.name && userProfile.name !== 'Usuário' ? userProfile.name : '';
-        const greeting = `Seja bem-vindo meu aluno ${name}, o que vamos fazer hoje?`;
-        
-        const utterance = new SpeechSynthesisUtterance(greeting);
-        utterance.lang = 'pt-BR';
-        
-        // Tentativa de pegar uma voz masculina/soberena se disponível
-        const voices = window.speechSynthesis.getVoices();
-        const ptVoice = voices.find(v => v.lang.includes('pt-BR') && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('google')));
-        if (ptVoice) utterance.voice = ptVoice;
-
-        utterance.rate = 0.8; // Mais pausado e sábio
-        utterance.pitch = 0.5; // Bem grave, voz de senhor
-        
-        utterance.onstart = () => setIsAvatarSpeaking(true);
-        utterance.onend = () => setIsAvatarSpeaking(false);
-        utterance.onerror = () => setIsAvatarSpeaking(false);
-        
-        window.speechSynthesis.speak(utterance);
-      }
+      const name = userProfile.name && userProfile.name !== 'Usuário' ? userProfile.name : '';
+      const greeting = `Seja bem-vindo meu aluno ${name}, o que vamos fazer hoje?`;
+      
+      senhorSaberSpeak(greeting, {
+        onStart: () => setIsAvatarSpeaking(true),
+        onEnd: () => setIsAvatarSpeaking(false)
+      });
     };
 
     const timer = setTimeout(speakWelcome, 1000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      stopSpeaking();
+    };
   }, [userProfile.name]);
 
   const handleLaunch = (tab: string) => {
