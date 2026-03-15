@@ -1,3 +1,4 @@
+// Deployment trigger: 2026-03-15 18:45
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppProvider, useApp } from './context/AppContext';
