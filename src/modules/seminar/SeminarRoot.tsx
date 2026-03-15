@@ -35,7 +35,7 @@ export const SeminarScreen: React.FC = () => {
       setIsExtracting(false);
       const result = await generateSeminarSlides(
         { apiKey, provider: aiProvider, baseUrl: customBaseUrl, modelId: customModelId },
-        text, mode, 'educacional', userProfile.name, topic
+        text, mode, 'educacional', userProfile?.name || 'Estudante', topic
       ) as Presentation;
       setPresentation(result); setPhase('viewer'); setCurrentSlide(0);
     } catch (e) {

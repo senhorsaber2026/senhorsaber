@@ -26,6 +26,8 @@ export const HomeScreen: React.FC = () => {
   const { userProfile, chatHistory, setActiveTab, setEstudosSubTab } = useApp();
   const [isAvatarSpeaking, setIsAvatarSpeaking] = useState(false);
 
+  if (!userProfile) return null;
+
   React.useEffect(() => {
     // Bem-vindo greeting with Audio
     const speakWelcome = () => {

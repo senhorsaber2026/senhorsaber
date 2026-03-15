@@ -9,6 +9,8 @@ export const StudyPlanScreen: React.FC = () => {
   const [plan, setPlan] = useState('');
   const [loading, setLoading] = useState(false);
 
+  if (!userProfile) return null;
+
   const handleGeneratePlan = async () => {
     setLoading(true);
     try {
