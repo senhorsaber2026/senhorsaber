@@ -142,15 +142,44 @@ app.post('/api/login', dbReady, async (req, res) => {
     const db = getSql();
     const users = await db`SELECT * FROM users WHERE login = ${login}`;
     if (users.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' });
+    
     const user = users[0];
-    let isMatch = (user.login === 'admin' && password === 'admin123') || await bcrypt.compare(password, user.password);
+    let isMatch = false;
+    
+    // Safety check for password comparison
+    try {
+      if (user.login === 'admin' && password === 'admin123') {
+        isMatch = true;
+      } else if (user.password && user.password.startsWith('$2')) {
+        isMatch = await bcrypt.compare(password, user.password);
+      } else {
+        // Plain text fallback or invalid password format
+        isMatch = (password === user.password);
+      }
+    } catch (bcryptErr) {
+      console.error('Bcrypt error:', bcryptErr);
+      isMatch = false;
+    }
+
     if (!isMatch) return res.status(401).json({ error: 'Senha incorreta' });
+    
     const token = jwt.sign({ id: user.id, login: user.login, is_admin: user.is_admin }, JWT_SECRET);
     const { password: _, ...userWithoutPass } = user;
     res.json({ user: userWithoutPass, token });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Erro no login: ' + error.message });
   }
+});
+
+// Default 404 handler for API
+app.use((req, res) => {
+  res.status(404).json({ error: 'Rota não encontrada' });
+});
+
+// Error handler for JSON parsing or other middleware errors
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
 });
 
 app.post('/api/payments/proof', authenticateToken, dbReady, upload.single('proof'), async (req, res) => {

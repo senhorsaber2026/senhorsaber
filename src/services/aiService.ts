@@ -110,7 +110,8 @@ export const generateQuestions = async (
   numQuestions: number = 5,
   difficulty: string = 'Média',
   bank: string = 'Geral',
-  smartMode: boolean = false
+  smartMode: boolean = false,
+  unipMode: boolean = false
 ): Promise<QuizQuestion[]> => {
   const bankInstructions = {
     'CESPE / CEBRASPE': 'ESTILO CESPE: Gere questões EXCLUSIVAMENTE do tipo "Certo ou Errado". Cada questão deve ter apenas 2 opções: "A) Certo" e "B) Errado".',
@@ -124,11 +125,21 @@ export const generateQuestions = async (
     ? '\n\nMODO ESTUDO INTELIGENTE: Identifique e foque nos subtemas que têm as MAIORES TAXAS DE INCIDÊNCIA em concursos reais para este assunto. Explique na "explanation" por que este ponto é muito cobrado.' 
     : '';
 
+  const unipInstruction = unipMode
+    ? `\n\nMODELO UNIP EAD:
+    - 10 questões rigorosamente no formato de múltipla escolha (A, B, C, D, E).
+    - Nível MÉDIO a DIFÍCIL.
+    - Conteúdo baseado em interpretação, raciocínio e aplicação prática (não apenas memorização).
+    - Misturar conceitos teóricos com situações do cotidiano ou profissionais.
+    - Incluir questões com múltiplas afirmativas (Ex: I, II, III) para julgamento nas opções.
+    - Linguagem clara e enunciados formais de nível universitário.`
+    : '';
+
   const prompt = `${PROFESSOR_PERSONA}
 Gere um simulado de ${numQuestions} questões sobre o assunto: "${subject}".
 Dificuldade: ${difficulty}.
 Banca Selecionada: ${bank}.
-${bankInstructions}${smartInstruction}
+${bankInstructions}${smartInstruction}${unipInstruction}
 
 MUITO IMPORTANTE: Retorne APENAS um JSON válido no formato abaixo, sem texto extra:
 {
@@ -166,7 +177,8 @@ export const generateQuestionsFromPDF = async (
   numQuestions: number = 5,
   difficulty: string = 'Média',
   bank: string = 'Geral',
-  topic?: string
+  topic?: string,
+  unipMode: boolean = false
 ): Promise<QuizQuestion[]> => {
   const bankInstructions = {
     'CESPE / CEBRASPE': 'ESTILO CESPE: Gere questões EXCLUSIVAMENTE do tipo "Certo ou Errado". Cada questão deve ter apenas 2 opções: "A) Certo" e "B) Errado".',
@@ -177,11 +189,21 @@ export const generateQuestionsFromPDF = async (
 
   const topicInstruction = topic ? `\n\nFOCO NO TÓPICO: "${topic}". Gere questões exclusivamente sobre este assunto encontrado no texto do PDF.` : '';
 
+  const unipInstruction = unipMode
+    ? `\n\nMODELO UNIP EAD:
+    - 10 questões rigorosamente no formato de múltipla escolha (A, B, C, D, E).
+    - Nível MÉDIO a DIFÍCIL.
+    - Conteúdo baseado em interpretação, raciocínio e aplicação prática (não apenas memorização).
+    - Misturar conceitos teóricos com situações do cotidiano ou profissionais.
+    - Incluir questões com múltiplas afirmativas (Ex: I, II, III) para julgamento nas opções.
+    - Linguagem clara e enunciados formais de nível universitário.`
+    : '';
+
   const prompt = `${PROFESSOR_PERSONA}
 Gere um simulado de ${numQuestions} questões baseado EXCLUSIVAMENTE no conteúdo do PDF fornecido abaixo.
 Dificuldade: ${difficulty}.
 Banca Selecionada: ${bank}.${topicInstruction}
-${bankInstructions}
+${bankInstructions}${unipInstruction}
 
 CONTEÚDO DO PDF:
 ${pdfText.substring(0, 8000)}

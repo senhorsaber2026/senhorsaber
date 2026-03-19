@@ -116,15 +116,46 @@ app.post('/api/login', async (req, res) => {
   try {
     const users = await sql`SELECT * FROM users WHERE login = ${login}`;
     if (users.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' });
+    
     const user = users[0];
-    let isMatch = (user.login === 'admin' && password === 'admin123') || await bcrypt.compare(password, user.password);
+    let isMatch = false;
+    
+    try {
+      if (user.login === 'admin' && password === 'admin123') {
+        isMatch = true;
+      } else if (user.password && user.password.startsWith('$2')) {
+        isMatch = await bcrypt.compare(password, user.password);
+      } else {
+        isMatch = (password === user.password);
+      }
+    } catch (bcryptErr) {
+      console.error('Bcrypt error:', bcryptErr);
+      isMatch = false;
+    }
+
     if (!isMatch) return res.status(401).json({ error: 'Senha incorreta' });
+    
     const token = jwt.sign({ id: user.id, login: user.login, is_admin: user.is_admin }, JWT_SECRET);
     const { password: _, ...userWithoutPass } = user;
     res.json({ user: userWithoutPass, token });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: 'Erro no login' });
   }
+});
+
+// Default 404 handler for API
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'Rota não encontrada' });
+  } else {
+    next();
+  }
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
 });
 
 // Payment Proof Upload

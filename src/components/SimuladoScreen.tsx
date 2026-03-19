@@ -17,7 +17,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-type Phase = 'config' | 'playing' | 'result';
+type Phase = 'config' | 'instructions' | 'playing' | 'result';
 
 const SUBJECTS = ['Matemática', 'Português', 'Direito Constitucional', 'Direito Administrativo', 'Raciocínio Lógico', 'Informática', 'História', 'Geografia', 'Inglês', 'Biologia'];
 
@@ -58,6 +58,7 @@ export const SimuladoScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showExplanation, setShowExplanation] = useState(false);
+  const [unipMode, setUnipMode] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -134,17 +135,36 @@ export const SimuladoScreen: React.FC = () => {
         setIsExtracting(false);
         const displaySubject = pdfFilter === 'topic' && targetTopic ? targetTopic : (uploadedFile?.name.replace(/\.[^/.]+$/, "") || 'Conteúdo do PDF');
         setSubject(displaySubject);
-        qs = await generateQuestionsFromPDF(aiConfig, pdfText, questionCount, difficulty, bank, pdfFilter === 'topic' ? targetTopic : undefined);
+        qs = await generateQuestionsFromPDF(
+          aiConfig, pdfText, 
+          unipMode ? 10 : questionCount, 
+          unipMode ? 'Difícil' : difficulty, 
+          bank, 
+          pdfFilter === 'topic' ? targetTopic : undefined,
+          unipMode
+        );
       } else {
-        qs = await generateQuestions(aiConfig, subject, questionCount, difficulty, bank, smartMode);
+        qs = await generateQuestions(
+          aiConfig, subject, 
+          unipMode ? 10 : questionCount, 
+          unipMode ? 'Difícil' : difficulty, 
+          bank, 
+          smartMode,
+          unipMode
+        );
       }
 
       setQuestions(qs);
       setCurrentIdx(0);
       setScore(0);
       setAnswers([]);
-      setTimeLeft(questionCount * 60);
-      setPhase('playing');
+      setTimeLeft(qs.length * 60);
+      
+      if (unipMode) {
+        setPhase('instructions');
+      } else {
+        setPhase('playing');
+      }
     } catch (e: any) {
       setError(e.message || 'Erro ao gerar questões. Verifique sua conexão.');
     } finally {
@@ -223,6 +243,29 @@ export const SimuladoScreen: React.FC = () => {
             }}>
               <motion.div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3 }}
                 animate={{ left: smartMode ? 23 : 3 }} />
+            </button>
+          </div>
+        </div>
+
+        {/* UNIP EAD Model Toggle */}
+        <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '1rem', border: unipMode ? '1.5px solid #f59e0b' : '1px solid rgba(255,255,255,0.08)', background: unipMode ? 'rgba(245,158,11,0.05)' : 'rgba(255,255,255,0.02)', transition: 'all 0.3s' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{ padding: '0.6rem', background: unipMode ? '#f59e0b' : 'rgba(255,255,255,0.05)', borderRadius: '10px', color: unipMode ? '#000' : 'var(--text-muted)', transition: 'all 0.3s' }}>
+                <Award size={20} />
+              </div>
+              <div>
+                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: unipMode ? '#f59e0b' : 'var(--text-primary)' }}>Modelo UNIP EAD</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Prova oficial: 10 questões (A-E) médio/difícil</p>
+              </div>
+            </div>
+            <button onClick={() => setUnipMode(!unipMode)} style={{
+              width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: unipMode ? '#f59e0b' : 'rgba(255,255,255,0.2)',
+              position: 'relative', transition: 'all 0.3s'
+            }}>
+              <motion.div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3 }}
+                animate={{ left: unipMode ? 23 : 3 }} />
             </button>
           </div>
         </div>
@@ -369,11 +412,11 @@ export const SimuladoScreen: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
+        <div className="glass-card" style={{ padding: '1.25rem', marginBottom: '1.5rem', opacity: unipMode ? 0.6 : 1, pointerEvents: unipMode ? 'none' : 'auto' }}>
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
-            Quantidade de Questões: <span style={{ color: 'var(--holo-primary)' }}>{questionCount}</span>
+            Quantidade de Questões: <span style={{ color: 'var(--holo-primary)' }}>{unipMode ? 10 : questionCount}</span>
           </label>
-          <input type="range" min={3} max={15} value={questionCount} onChange={e => setQuestionCount(Number(e.target.value))}
+          <input type="range" min={3} max={15} value={unipMode ? 10 : questionCount} onChange={e => setQuestionCount(Number(e.target.value))}
             style={{ width: '100%', accentColor: 'var(--holo-primary)', cursor: 'pointer' }} />
         </div>
 
@@ -395,9 +438,45 @@ export const SimuladoScreen: React.FC = () => {
     </div>
   );
 
+  if (phase === 'instructions') return (
+    <div style={{ padding: '1.5rem', maxWidth: 500, margin: '0 auto' }}>
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card" style={{ padding: '2rem', border: '1px solid var(--holo-primary)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <h1 style={{ fontFamily: 'Orbitron, sans-serif', color: 'var(--holo-primary)', fontSize: '1.4rem', marginBottom: '0.5rem' }}>UNIP EAD</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Avaliação Bimestral</p>
+          <div style={{ height: '1px', background: 'rgba(0,245,255,0.2)', margin: '1rem 0' }} />
+        </div>
+        
+        <div style={{ textAlign: 'left', marginBottom: '2rem' }}>
+          <h3 style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileText size={18} /> Instruções da Prova:
+          </h3>
+          <ul style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', paddingLeft: '1.2rem', lineHeight: 1.8 }}>
+            <li>Esta prova contém <strong>10 questões</strong> de múltipla escolha.</li>
+            <li>Nível de dificuldade: <strong>Médio a Difícil</strong>.</li>
+            <li>Leia atentamente cada enunciado antes de responder.</li>
+            <li>Assinale apenas uma alternativa correta por questão.</li>
+            <li>O cronômetro iniciará assim que você clicar no botão abaixo.</li>
+            <li>Boa prova!</li>
+          </ul>
+        </div>
+
+        <button className="btn-primary" onClick={() => setPhase('playing')} style={{ width: '100%', justifyContent: 'center', padding: '1rem' }}>
+          <Zap size={18} /> Iniciar Avaliação Agora
+        </button>
+      </motion.div>
+    </div>
+  );
+
   if (phase === 'playing' && current) return (
     <div style={{ padding: '1rem', maxWidth: 500, margin: '0 auto' }}>
       {/* Header */}
+      {unipMode && (
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem', padding: '0.75rem', border: '1px solid rgba(0,245,255,0.2)', borderRadius: '12px', background: 'rgba(0,245,255,0.02)' }}>
+          <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.7rem', color: 'var(--holo-primary)', letterSpacing: '0.2em', margin: 0 }}>UNIP EAD · AVALIAÇÃO BIMESTRAL</p>
+          <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>DISCIPLINA: {subject.toUpperCase()}</p>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
           <div className="tag">{subject}</div>

@@ -67,29 +67,43 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const login = async (credentials: { login: string, password: string }) => {
-    const res = await fetch(`${API_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials)
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro no login');
-    
-    const profile = {
-      ...data.user,
-      token: data.token,
-      isAdmin: data.user.is_admin,
-      plan: data.user.plan || 'free',
-      status: data.user.status || 'active',
-      questionsToday: 0,
-      simuladosToday: 0,
-      totalScore: 0,
-      streak: 1
-    };
-    
-    setUserProfile(profile);
-    localStorage.setItem('user_profile_real', JSON.stringify(profile));
+    try {
+      const res = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      });
+      
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('Non-JSON response:', text);
+        throw new Error('Serviço indisponível ou erro no servidor. Tente novamente mais tarde.');
+      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Credenciais inválidas ou erro no login');
+      
+      const profile = {
+        ...data.user,
+        token: data.token,
+        isAdmin: data.user.is_admin,
+        plan: data.user.plan || 'free',
+        status: data.user.status || 'active',
+        questionsToday: 0,
+        simuladosToday: 0,
+        totalScore: 0,
+        streak: 1
+      };
+      
+      setUserProfile(profile);
+      localStorage.setItem('user_profile_real', JSON.stringify(profile));
+    } catch (err: any) {
+      if (err.message.includes('Unexpected end of JSON input')) {
+        throw new Error('Erro de conexão com o servidor. Verifique sua internet.');
+      }
+      throw err;
+    }
   };
 
   const register = async (userData: { name: string, email: string }) => {
@@ -99,8 +113,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       body: JSON.stringify(userData)
     });
     
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Erro ao processar registro no servidor.');
+    }
+
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro no registro');
+    if (!res.ok) throw new Error(data.error || 'Erro ao realizar registro');
     return data.credentials;
   };
 

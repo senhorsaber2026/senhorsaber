@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
+import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
@@ -38,12 +39,20 @@ async function init() {
     // Create default admin if not exists
     const adminExists = await sql`SELECT * FROM users WHERE login = 'admin' LIMIT 1`;
     if (adminExists.length === 0) {
-      // For simplicity in this demo, password is 'admin123' (will be hashed in real app, but here we can just do it)
+      const hashedPassword = await bcrypt.hash('admin123', 10);
       await sql`
         INSERT INTO users (login, password, name, is_admin, status, plan)
-        VALUES ('admin', 'admin123', 'Administrador', TRUE, 'active', 'premium')
+        VALUES ('admin', ${hashedPassword}, 'Administrador', TRUE, 'active', 'premium')
       `;
       console.log('Default admin user created (admin / admin123).');
+    } else {
+      // Update existing admin to have hashed password if it's plain text
+      const admin = adminExists[0];
+      if (!admin.password.startsWith('$2')) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await sql`UPDATE users SET password = ${hashedPassword} WHERE login = 'admin'`;
+        console.log('Admin password updated to bcrypt hash.');
+      }
     }
 
     console.log('Database initialization complete.');
