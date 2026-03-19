@@ -127,12 +127,16 @@ export const generateQuestions = async (
 
   const unipInstruction = unipMode
     ? `\n\nMODELO UNIP EAD:
-    - 10 questões rigorosamente no formato de múltipla escolha (A, B, C, D, E).
-    - Nível MÉDIO a DIFÍCIL.
-    - Conteúdo baseado em interpretação, raciocínio e aplicação prática (não apenas memorização).
-    - Misturar conceitos teóricos com situações do cotidiano ou profissionais.
-    - Incluir questões com múltiplas afirmativas (Ex: I, II, III) para julgamento nas opções.
-    - Linguagem clara e enunciados formais de nível universitário.`
+    - 10 questões no formato de múltipla escolha (A, B, C, D, E).
+    - Nível MÉDIO a DIFÍCIL, seguindo rigorosamente o padrão acadêmico da UNIP.
+    - OBRIGATÓRIO: Use o formato de múltiplas afirmativas (Ex: I, II, III, IV, V) no corpo da pergunta para a maioria das questões.
+    - As opções (A-E) devem referir-se à correção das afirmativas (ex: "Apenas I e III estão corretas").
+    - A "explanation" DEVE seguir este formato exato:
+      Resposta correta: alternativa [LETRA].
+      Análise das afirmativas:
+      I – [Texto da afirmativa] ([Correta/Incorreta]). Justificativa: [Explicação baseada no conteúdo].
+      II – [Texto da afirmativa] ([Correta/Incorreta]). Justificativa: [Explicação baseada no conteúdo].
+      ... (repetir para todas as afirmativas da questão).`
     : '';
 
   const prompt = `${PROFESSOR_PERSONA}
@@ -191,12 +195,16 @@ export const generateQuestionsFromPDF = async (
 
   const unipInstruction = unipMode
     ? `\n\nMODELO UNIP EAD:
-    - 10 questões rigorosamente no formato de múltipla escolha (A, B, C, D, E).
-    - Nível MÉDIO a DIFÍCIL.
-    - Conteúdo baseado em interpretação, raciocínio e aplicação prática (não apenas memorização).
-    - Misturar conceitos teóricos com situações do cotidiano ou profissionais.
-    - Incluir questões com múltiplas afirmativas (Ex: I, II, III) para julgamento nas opções.
-    - Linguagem clara e enunciados formais de nível universitário.`
+    - 10 questões no formato de múltipla escolha (A, B, C, D, E) baseadas NAS ETAPAS E CONTEÚDO DO PDF.
+    - Nível MÉDIO a DIFÍCIL, seguindo o padrão acadêmico da UNIP.
+    - OBRIGATÓRIO: Use o formato de múltiplas afirmativas (Ex: I, II, III, IV, V) para analisar conceitos do PDF.
+    - As opções (A-E) devem selecionar as combinações corretas de afirmativas.
+    - A "explanation" DEVE seguir este formato exato:
+      Resposta correta: alternativa [LETRA].
+      Análise das afirmativas:
+      I – [Status]. Justificativa: [Baseado no PDF].
+      II – [Status]. Justificativa: [Baseado no PDF].
+      ...`
     : '';
 
   const prompt = `${PROFESSOR_PERSONA}

@@ -532,7 +532,7 @@ export const SimuladoScreen: React.FC = () => {
               </button>
               {showExplanation && (
                 <div style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '10px', padding: '0.75rem', marginBottom: '0.75rem' }}>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{current.explanation}</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{current.explanation}</p>
                 </div>
               )}
               <button className="btn-primary" onClick={nextQuestion} style={{ width: '100%', justifyContent: 'center', padding: '0.85rem' }}>
