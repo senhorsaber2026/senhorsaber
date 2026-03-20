@@ -18,12 +18,38 @@ const GEMINI_MODELS = [
  */
 const extractJson = (text: string) => {
   try {
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start === -1 || end === -1) return null;
-    const jsonStr = text.substring(start, end + 1);
+    // Remove markdown code blocks if present
+    let cleaned = text
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    // Try parsing directly first
+    try {
+      return JSON.parse(cleaned);
+    } catch (_) {}
+
+    // Find first { or [ and last } or ]
+    const firstBrace = cleaned.indexOf('{');
+    const firstBracket = cleaned.indexOf('[');
+    let start = -1;
+    let end = -1;
+    let endChar = '}';
+
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      start = firstBrace;
+      end = cleaned.lastIndexOf('}');
+      endChar = '}';
+    } else if (firstBracket !== -1) {
+      start = firstBracket;
+      end = cleaned.lastIndexOf(']');
+    }
+
+    if (start === -1 || end === -1 || end < start) return null;
+    const jsonStr = cleaned.substring(start, end + 1);
     return JSON.parse(jsonStr);
   } catch (e) {
+    console.error('[extractJson] Failed to parse JSON:', e);
     return null;
   }
 };
@@ -145,7 +171,7 @@ Dificuldade: ${difficulty}.
 Banca Selecionada: ${bank}.
 ${bankInstructions}${smartInstruction}${unipInstruction}
 
-MUITO IMPORTANTE: Retorne APENAS um JSON válido no formato abaixo, sem texto extra:
+MUITO IMPORTANTE: Retorne APENAS o JSON puro abaixo, SEM blocos de código markdown, SEM texto extra, SEM \`\`\`json:
 {
   "questions": [
     {
@@ -165,7 +191,8 @@ MUITO IMPORTANTE: Retorne APENAS um JSON válido no formato abaixo, sem texto ex
   const text = await callAI({ ...config, prompt });
   const parsed = extractJson(text);
   if (!parsed || !parsed.questions) {
-    throw new Error('Falha ao gerar questões estruturadas.');
+    console.error('[generateQuestions] Raw AI response:', text);
+    throw new Error('Falha ao gerar questões. A IA não retornou um formato válido. Tente novamente.');
   }
   return parsed.questions.map((q: any, i: number) => ({
     ...q,
@@ -216,7 +243,7 @@ ${bankInstructions}${unipInstruction}
 CONTEÚDO DO PDF:
 ${pdfText.substring(0, 8000)}
 
-MUITO IMPORTANTE: Retorne APENAS um JSON válido no formato abaixo, sem texto extra:
+MUITO IMPORTANTE: Retorne APENAS o JSON puro abaixo, SEM blocos de código markdown, SEM texto extra, SEM \`\`\`json:
 {
   "questions": [
     {
@@ -236,7 +263,8 @@ MUITO IMPORTANTE: Retorne APENAS um JSON válido no formato abaixo, sem texto ex
   const text = await callAI({ ...config, prompt });
   const parsed = extractJson(text);
   if (!parsed || !parsed.questions) {
-    throw new Error('Falha ao gerar questões baseadas no PDF.');
+    console.error('[generateQuestionsFromPDF] Raw AI response:', text);
+    throw new Error('Falha ao gerar questões do PDF. A IA não retornou um formato válido. Tente novamente.');
   }
   return parsed.questions.map((q: any, i: number) => ({
     ...q,
