@@ -20,11 +20,8 @@ app.use((req, res, next) => {
 });
 
 // Multi-part form handling for serverless (limited persistence)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, '/tmp'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
-});
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Lazy SQL client to avoid crash if env is missing during boot
 let sql;
@@ -192,7 +189,11 @@ router.post('/payments/proof', authenticateToken, dbReady, upload.single('proof'
 router.post('/user/avatar', authenticateToken, dbReady, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
-    const avatar_url = `/uploads/${req.file.filename}`;
+    
+    // Convert memory buffer to Base64 string for direct database storage (Vercel fix)
+    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const avatar_url = base64Image;
+    
     const db = getSql();
     await db`UPDATE users SET avatar_url = ${avatar_url} WHERE id = ${req.user.id}`;
     res.json({ message: 'Avatar atualizado com sucesso!', url: avatar_url });
@@ -265,7 +266,11 @@ router.delete('/admin/users/:userId', authenticateToken, isAdmin, dbReady, async
 router.post('/admin/persona-image', authenticateToken, isAdmin, dbReady, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
-    const image_url = `/uploads/${req.file.filename}`;
+    
+    // Base64 Vercel fix
+    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    const image_url = base64Image;
+    
     const db = getSql();
     await db`
       INSERT INTO settings (key, value) VALUES ('persona_image_url', ${image_url})
