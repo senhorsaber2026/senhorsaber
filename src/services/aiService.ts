@@ -34,12 +34,10 @@ const extractJson = (text: string) => {
     const firstBracket = cleaned.indexOf('[');
     let start = -1;
     let end = -1;
-    let endChar = '}';
 
     if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
       start = firstBrace;
       end = cleaned.lastIndexOf('}');
-      endChar = '}';
     } else if (firstBracket !== -1) {
       start = firstBracket;
       end = cleaned.lastIndexOf(']');
