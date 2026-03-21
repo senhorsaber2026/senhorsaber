@@ -53,6 +53,7 @@ export interface UserProfile {
   status: 'active' | 'pending' | 'blocked';
   isAdmin: boolean;
   token?: string;
+  avatar_url?: string;
 }
 
 export interface OraclePrediction {

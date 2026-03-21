@@ -5,7 +5,7 @@ import { Avatar } from './Avatar';
 import { useApp } from '../context/AppContext';
 
 export const ProfileScreen: React.FC = () => {
-  const { userProfile, setPlan, apiKey, setApiKey, aiProvider, setAiProvider, customBaseUrl, setCustomBaseUrl, customModelId, setCustomModelId, logout } = useApp();
+  const { userProfile, setUserProfile, setPlan, apiKey, setApiKey, aiProvider, setAiProvider, customBaseUrl, setCustomBaseUrl, customModelId, setCustomModelId, logout } = useApp();
   const [showApiInput, setShowApiInput] = useState(false);
   const [tempKey, setTempKey] = useState(apiKey);
   const [tempBaseUrl, setTempBaseUrl] = useState(customBaseUrl);
@@ -50,8 +50,47 @@ export const ProfileScreen: React.FC = () => {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-          <Avatar size="md" />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', position: 'relative' }}>
+          <div style={{ position: 'relative', cursor: 'pointer' }} onClick={() => document.getElementById('avatar-input')?.click()}>
+            <Avatar size="md" src={userProfile.avatar_url} />
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              background: 'var(--holo-primary)', borderRadius: '50%', padding: '0.35rem',
+              color: '#000', boxShadow: '0 0 10px var(--holo-primary)'
+            }}>
+              <Settings size={14} />
+            </div>
+            <input
+              id="avatar-input"
+              type="file"
+              hidden
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                
+                const formData = new FormData();
+                formData.append('avatar', file);
+                
+                try {
+                  const res = await fetch('/api/user/avatar', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${userProfile.token}` },
+                    body: formData
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error);
+                  
+                  // Update local state
+                  const updated = { ...userProfile, avatar_url: data.url };
+                  setUserProfile!(updated);
+                  localStorage.setItem('user_profile_real', JSON.stringify(updated));
+                } catch (err: any) {
+                  alert('Erro ao carger avatar: ' + err.message);
+                }
+              }}
+            />
+          </div>
         </div>
         <h2 style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
           {userProfile.name}

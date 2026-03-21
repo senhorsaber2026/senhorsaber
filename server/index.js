@@ -166,6 +166,19 @@ app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async
   }
 });
 
+// User Avatar Upload
+app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+    const avatar_url = `/uploads/${req.file.filename}`;
+    await sql`UPDATE users SET avatar_url = ${avatar_url} WHERE id = ${req.user.id}`;
+    res.json({ message: 'Avatar atualizado com sucesso!', url: avatar_url });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({ error: 'Erro ao salvar avatar' });
+  }
+});
+
 // Admin: List Users
 app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
   try {

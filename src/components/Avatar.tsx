@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   speaking?: boolean;
+  src?: string;
 }
 
 const sizes = {
@@ -14,9 +15,10 @@ const sizes = {
   xl: 200,
 };
 
-export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false }) => {
+export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false, src }) => {
   const { personaImageUrl } = useApp();
   const px = sizes[size];
+  const finalSrc = src || personaImageUrl;
 
   return (
     <motion.div
@@ -78,7 +80,7 @@ export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false })
 
         {/* Professor Image */}
         <img
-          src={personaImageUrl}
+          src={finalSrc}
           alt="Senhor Saber"
           style={{
             width: '100%',

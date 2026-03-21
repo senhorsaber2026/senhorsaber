@@ -75,7 +75,7 @@ export const HomeScreen: React.FC = () => {
         }} />
 
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem', position: 'relative' }}>
-          <Avatar size="xl" speaking={isAvatarSpeaking} />
+          <Avatar size="xl" speaking={isAvatarSpeaking} src={userProfile.avatar_url} />
           
           {/* Subtle text reveal that follows the voice */}
           <AnimatePresence>
