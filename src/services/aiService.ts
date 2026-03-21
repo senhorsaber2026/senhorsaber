@@ -53,52 +53,80 @@ const extractJson = (text: string) => {
 };
 
 /**
- * Universal (OpenAI Compatibility) helper
+ * Universal (OpenAI Compatibility) helper - Supports Multiple Keys
  */
-const callUniversalAI = async (apiKey: string, baseUrl: string, modelId: string, prompt: string): Promise<string> => {
+const callUniversalAI = async (apiKeyString: string, baseUrl: string, modelId: string, prompt: string): Promise<string> => {
   const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
+  const apiKeys = apiKeyString.split(',').map(k => k.trim()).filter(k => k);
   
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: modelId,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
+  if (apiKeys.length === 0) throw new Error("Aviso: Nenhuma chave de API configurada.");
+  
+  let lastError: any = null;
+  
+  for (const apiKey of apiKeys) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const errorMsg = errorData.error?.message || `Status: ${response.status}`;
-    throw new Error(`Erro na API: ${errorMsg}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error?.message || `Status: ${response.status}`;
+        throw new Error(`Erro na API (${apiKey.slice(0, 4)}...): ${errorMsg}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[callUniversalAI] Falha com a chave ${apiKey.slice(0, 4)}... Tentando próxima se houver. Erro:`, err.message);
+    }
   }
-
-  const data = await response.json();
-  return data.choices[0].message.content;
+  
+  throw lastError || new Error("Falha em todas as chaves de API Universal. Cota excedida ou chaves inválidas.");
 };
 
 /**
- * Gemini helper with fallback
+ * Gemini helper with fallback - Supports Multiple Keys
  */
-const callGeminiWithFallback = async (apiKey: string, prompt: string): Promise<string> => {
-  const ai = new GoogleGenerativeAI(apiKey);
+const callGeminiWithFallback = async (apiKeyString: string, prompt: string): Promise<string> => {
+  const apiKeys = apiKeyString.split(',').map(k => k.trim()).filter(k => k);
+  if (apiKeys.length === 0) throw new Error("Aviso: Nenhuma chave de API Gemini configurada.");
+  
   let lastError: any = null;
 
-  for (const modelName of GEMINI_MODELS) {
+  for (const apiKey of apiKeys) {
+    const ai = new GoogleGenerativeAI(apiKey);
+    let modelError: any = null;
+    
     try {
-      const model = ai.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      return result.response.text();
-    } catch (error: any) {
-      lastError = error;
-      const msg = error.message || '';
-      if (!msg.includes('404') && !msg.includes('not found')) throw error;
+      for (const modelName of GEMINI_MODELS) {
+        try {
+          const model = ai.getGenerativeModel({ model: modelName });
+          const result = await model.generateContent(prompt);
+          return result.response.text();
+        } catch (error: any) {
+          modelError = error;
+          const msg = error.message || '';
+          if (!msg.includes('404') && !msg.includes('not found')) throw error;
+        }
+      }
+      throw modelError || new Error('Nenhum modelo Gemini disponível para esta chave.');
+    } catch (err: any) {
+      lastError = err;
+      console.warn(`[callGeminiWithFallback] Falha com a chave ${apiKey.slice(0, 4)}... Tentando próxima. Erro:`, err.message);
     }
   }
-  throw lastError || new Error('Nenhum modelo Gemini disponível.');
+  
+  throw lastError || new Error('Falha em todas as chaves de API Gemini. Cota excedida ou chaves inválidas.');
 };
 
 /**
