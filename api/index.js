@@ -147,8 +147,9 @@ router.post('/register', dbReady, async (req, res) => {
 router.post('/login', dbReady, async (req, res) => {
   const { login, password } = req.body;
   try {
+    const trimmedLogin = login ? login.trim() : '';
     const db = getSql();
-    const users = await db`SELECT * FROM users WHERE login = ${login}`;
+    const users = await db`SELECT * FROM users WHERE login = ${trimmedLogin}`;
     if (users.length === 0) return res.status(401).json({ error: 'Usuário não encontrado' });
     
     const user = users[0];
