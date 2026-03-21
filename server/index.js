@@ -21,6 +21,12 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Log requests to help debug 404s
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 const sql = neon(process.env.DATABASE_URL);
 
 // Ensure settings table exists with defaults
@@ -146,11 +152,6 @@ app.post('/api/login', async (req, res) => {
 
 // Rotas administrativas e outras virão antes do 404 handler
 
-// Error handler
-app.use((err, req, res, next) => {
-  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
-});
-
 // Payment Proof Upload
 app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async (req, res) => {
   try {
@@ -253,6 +254,12 @@ app.use((req, res, next) => {
   } else {
     next();
   }
+});
+
+// Final Error handler
+app.use((err, req, res, next) => {
+  console.error('SERVER ERROR:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
 });
 
 app.listen(port, () => {

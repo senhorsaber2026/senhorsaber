@@ -14,6 +14,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'senhor-saber-secret-key-2026';
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`[API LOG] ${req.method} ${req.path}`);
+  next();
+});
+
 // Multi-part form handling for serverless (limited persistence)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, '/tmp'),
@@ -174,11 +179,6 @@ app.post('/api/login', dbReady, async (req, res) => {
 
 // O handler de 404 foi movido para o final
 
-// Error handler for JSON parsing or other middleware errors
-app.use((err, req, res, next) => {
-  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
-});
-
 app.post('/api/payments/proof', authenticateToken, dbReady, upload.single('proof'), async (req, res) => {
   try {
     const db = getSql();
@@ -268,6 +268,12 @@ app.post('/api/admin/persona-image', authenticateToken, isAdmin, dbReady, upload
 // Default 404 handler for API - MOVIDO PARA O FINAL
 app.use((req, res) => {
   res.status(404).json({ error: 'Rota não encontrada' });
+});
+
+// Final Error handler
+app.use((err, req, res, next) => {
+  console.error('API ERROR:', err);
+  res.status(err.status || 500).json({ error: err.message || 'Erro interno do servidor' });
 });
 
 export default app;
