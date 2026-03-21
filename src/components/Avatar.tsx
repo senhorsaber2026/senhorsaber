@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useApp } from '../context/AppContext';
 
 interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -14,6 +15,7 @@ const sizes = {
 };
 
 export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false }) => {
+  const { personaImageUrl } = useApp();
   const px = sizes[size];
 
   return (
@@ -22,7 +24,7 @@ export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false })
       animate={{ y: [0, -8, 0] }}
       transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
     >
-      {/* Outer ripple rings */}
+      {/* ... (keep rings) */}
       {[1, 2, 3].map(i => (
         <motion.div
           key={i}
@@ -76,7 +78,7 @@ export const Avatar: React.FC<AvatarProps> = ({ size = 'md', speaking = false })
 
         {/* Professor Image */}
         <img
-          src="/senhor-saber.jpg"
+          src={personaImageUrl}
           alt="Senhor Saber"
           style={{
             width: '100%',

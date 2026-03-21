@@ -144,14 +144,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Default 404 handler for API
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    res.status(404).json({ error: 'Rota não encontrada' });
-  } else {
-    next();
-  }
-});
+// Rotas administrativas e outras virão antes do 404 handler
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -217,6 +210,48 @@ app.post('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => 
     res.json({ message: 'Configurações atualizadas com sucesso!' });
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar configurações' });
+  }
+});
+
+// Admin: Delete User
+app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    // Check if trying to delete self
+    if (req.user.id === parseInt(userId)) {
+      return res.status(400).json({ error: 'Você não pode excluir a si mesmo' });
+    }
+    await sql`DELETE FROM payments WHERE user_id = ${userId}`;
+    await sql`DELETE FROM users WHERE id = ${userId}`;
+    res.json({ message: 'Usuário excluído com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao excluir usuário' });
+  }
+});
+
+// Admin: Persona Image Upload
+app.post('/api/admin/persona-image', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+    const image_url = `/uploads/${req.file.filename}`;
+    
+    await sql`
+      INSERT INTO settings (key, value) VALUES ('persona_image_url', ${image_url})
+      ON CONFLICT (key) DO UPDATE SET value = ${image_url}
+    `;
+    
+    res.json({ message: 'Imagem da persona atualizada!', url: image_url });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar imagem' });
+  }
+});
+
+// Default 404 handler for API - MOVIDO PARA O FINAL
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'Rota não encontrada' });
+  } else {
+    next();
   }
 });
 

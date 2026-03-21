@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Eye, ExternalLink, RefreshCw, ShieldCheck, Key, Save, DollarSign } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, ExternalLink, RefreshCw, ShieldCheck, Key, Save, DollarSign, Trash2, Upload } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export const AdminScreen: React.FC = () => {
@@ -16,6 +16,11 @@ export const AdminScreen: React.FC = () => {
   
   const [keySaving, setKeySaving] = useState(false);
   const [keyMsg, setKeyMsg] = useState('');
+  
+  // Image Upload state
+  const [personaFile, setPersonaFile] = useState<File | null>(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
   const [activeSection, setActiveSection] = useState<'users' | 'settings'>('users');
 
   const fetchUsers = async () => {
@@ -50,6 +55,22 @@ export const AdminScreen: React.FC = () => {
     fetchCurrentSettings();
   }, []);
 
+  const handleDelete = async (userId: number, userName: string) => {
+    if (!window.confirm(`Tem certeza que deseja EXCLUIR permanentemente o usuário ${userName}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${userProfile?.token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert('✅ Usuário excluído!');
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
   const handleAction = async (userId: number, action: 'approve' | 'reject') => {
     try {
       const res = await fetch('/api/admin/approve', {
@@ -64,6 +85,29 @@ export const AdminScreen: React.FC = () => {
       fetchUsers();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (!personaFile) return;
+    setUploadingImg(true);
+    setUploadMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('image', personaFile);
+      const res = await fetch('/api/admin/persona-image', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${userProfile?.token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setUploadMsg('✅ Imagem atualizada! Recarregue a página.');
+      setPersonaFile(null);
+    } catch (err: any) {
+      setUploadMsg('❌ ' + err.message);
+    } finally {
+      setUploadingImg(false);
     }
   };
 
@@ -156,9 +200,34 @@ export const AdminScreen: React.FC = () => {
           </div>
 
           {keyMsg && <p style={{ fontSize: '0.75rem', marginBottom: '1rem', color: keyMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{keyMsg}</p>}
-          <button className="btn-primary" onClick={saveSettings} disabled={keySaving} style={{ width: '100%', justifyContent: 'center' }}>
-            {keySaving ? <RefreshCw className="animate-spin" size={14} /> : <><Save size={14} /> Salvar Tudo</>}
+          <button className="btn-primary" onClick={saveSettings} disabled={keySaving} style={{ width: '100%', justifyContent: 'center', marginBottom: '2rem' }}>
+            {keySaving ? <RefreshCw className="animate-spin" size={14} /> : <><Save size={14} /> Salvar Configurações</>}
           </button>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.05)', margin: '1.5rem 0' }} />
+
+          <div style={{ marginBottom: '1rem' }}>
+            <p style={{ fontFamily: 'Orbitron, sans-serif', fontSize: '0.8rem', color: 'var(--holo-primary)', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Upload size={14} /> Mudar Imagem do Senhor Saber
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={e => setPersonaFile(e.target.files?.[0] || null)}
+                style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}
+              />
+              {uploadMsg && <p style={{ fontSize: '0.75rem', color: uploadMsg.startsWith('✅') ? '#10b981' : '#ef4444' }}>{uploadMsg}</p>}
+              <button 
+                className="btn-ghost" 
+                onClick={handleImageUpload} 
+                disabled={!personaFile || uploadingImg}
+                style={{ borderColor: 'var(--holo-primary)', color: 'var(--holo-primary)' }}
+              >
+                {uploadingImg ? <RefreshCw className="animate-spin" size={14} /> : 'Fazer Upload'}
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
 
@@ -216,6 +285,11 @@ export const AdminScreen: React.FC = () => {
                       disabled={u.status === 'blocked'}
                       style={{ flex: 1, padding: '0.5rem', borderRadius: '8px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 700, fontSize: '0.78rem', cursor: u.status === 'blocked' ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
                       <XCircle size={13} /> Bloquear
+                    </button>
+                    <button
+                      onClick={() => handleDelete(u.id, u.name)}
+                      style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 )}

@@ -172,10 +172,7 @@ app.post('/api/login', dbReady, async (req, res) => {
   }
 });
 
-// Default 404 handler for API
-app.use((req, res) => {
-  res.status(404).json({ error: 'Rota não encontrada' });
-});
+// O handler de 404 foi movido para o final
 
 // Error handler for JSON parsing or other middleware errors
 app.use((err, req, res, next) => {
@@ -235,6 +232,42 @@ app.post('/api/admin/settings', authenticateToken, isAdmin, dbReady, async (req,
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar configurações' });
   }
+});
+
+app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, dbReady, async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const db = getSql();
+    if (req.user.id === parseInt(userId)) {
+      return res.status(400).json({ error: 'Você não pode excluir a si mesmo' });
+    }
+    await db`DELETE FROM payments WHERE user_id = ${userId}`;
+    await db`DELETE FROM users WHERE id = ${userId}`;
+    res.json({ message: 'Usuário excluído com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao excluir usuário' });
+  }
+});
+
+app.post('/api/admin/persona-image', authenticateToken, isAdmin, dbReady, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
+    // In Vercel /tmp is temporary, but settings URL will point correctly to what the frontend expects
+    const image_url = `/uploads/${req.file.filename}`;
+    const db = getSql();
+    await db`
+      INSERT INTO settings (key, value) VALUES ('persona_image_url', ${image_url})
+      ON CONFLICT (key) DO UPDATE SET value = ${image_url}
+    `;
+    res.json({ message: 'Imagem atualizada!', url: image_url });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao salvar imagem' });
+  }
+});
+
+// Default 404 handler for API - MOVIDO PARA O FINAL
+app.use((req, res) => {
+  res.status(404).json({ error: 'Rota não encontrada' });
 });
 
 export default app;

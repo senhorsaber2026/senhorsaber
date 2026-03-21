@@ -30,6 +30,8 @@ interface AppContextType {
   estudosSubTab: 'plano' | 'pdf' | 'flashcards';
   setEstudosSubTab: (sub: 'plano' | 'pdf' | 'flashcards') => void;
   pixInfo: { key: string, value: string };
+  personaImageUrl: string;
+  setPersonaImageUrl: (url: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -132,6 +134,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key')?.trim() || import.meta.env.VITE_GROQ_API_KEY || '');
   const [pixInfo, setPixInfo] = useState({ key: 'pix@senhorsaber.com.br', value: '19,90' });
+  const [personaImageUrl, setPersonaImageUrl] = useState('/senhor-saber.jpg');
 
   // Fetch global settings from server on startup
   useEffect(() => {
@@ -146,6 +149,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             key: data.pix_key || 'pix@senhorsaber.com.br', 
             value: data.pix_value || '19,90' 
           });
+        }
+        if (data.persona_image_url) {
+          setPersonaImageUrl(data.persona_image_url);
         }
       })
       .catch(() => {});
@@ -192,6 +198,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       customModelId, setCustomModelId: handleSetCustomModelId,
       estudosSubTab, setEstudosSubTab,
       pixInfo,
+      personaImageUrl,
+      setPersonaImageUrl,
     }}>
       {children}
     </AppContext.Provider>
