@@ -77,11 +77,12 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// --- Public Routes ---
+// --- Router Definition ---
+const router = express.Router();
 
-app.get('/api/settings/public', async (req, res) => {
+router.get('/settings/public', async (req, res) => {
   try {
-    const result = await sql`SELECT key, value FROM settings WHERE key IN ('global_api_key', 'pix_key', 'pix_value')`;
+    const result = await sql`SELECT key, value FROM settings WHERE key IN ('global_api_key', 'pix_key', 'pix_value', 'persona_image_url')`;
     const settings = result.reduce((acc, curr) => ({ ...acc, [curr.key]: curr.value }), {});
     res.json(settings);
   } catch (error) {
@@ -94,7 +95,7 @@ app.get('/api/settings/public', async (req, res) => {
 });
 
 // Register
-app.post('/api/register', async (req, res) => {
+router.post('/register', async (req, res) => {
   const { name, email } = req.body;
   const login = 'user' + Math.floor(1000 + Math.random() * 9000);
   const rawPassword = Math.random().toString(36).slice(-8);
@@ -117,7 +118,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Login
-app.post('/api/login', async (req, res) => {
+router.post('/login', async (req, res) => {
   const { login, password } = req.body;
   try {
     const users = await sql`SELECT * FROM users WHERE login = ${login}`;
@@ -150,10 +151,8 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Rotas administrativas e outras virão antes do 404 handler
-
 // Payment Proof Upload
-app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async (req, res) => {
+router.post('/payments/proof', authenticateToken, upload.single('proof'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     const proof_url = `/uploads/${req.file.filename}`;
@@ -167,7 +166,7 @@ app.post('/api/payments/proof', authenticateToken, upload.single('proof'), async
 });
 
 // User Avatar Upload
-app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+router.post('/user/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
     const avatar_url = `/uploads/${req.file.filename}`;
@@ -180,7 +179,7 @@ app.post('/api/user/avatar', authenticateToken, upload.single('avatar'), async (
 });
 
 // Admin: List Users
-app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
+router.get('/admin/users', authenticateToken, isAdmin, async (req, res) => {
   try {
     const users = await sql`
       SELECT u.id, u.login, u.name, u.email, u.plan, u.status, u.is_admin, u.created_at,
@@ -196,7 +195,7 @@ app.get('/api/admin/users', authenticateToken, isAdmin, async (req, res) => {
 });
 
 // Admin: Approve/Block User
-app.post('/api/admin/approve', authenticateToken, isAdmin, async (req, res) => {
+router.post('/admin/approve', authenticateToken, isAdmin, async (req, res) => {
   const { userId, action } = req.body;
   try {
     const status = action === 'approve' ? 'active' : 'blocked';
@@ -212,7 +211,7 @@ app.post('/api/admin/approve', authenticateToken, isAdmin, async (req, res) => {
 });
 
 // Admin: Update Settings
-app.post('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => {
+router.post('/admin/settings', authenticateToken, isAdmin, async (req, res) => {
   const { settings } = req.body; // { key1: val1, key2: val2 }
   try {
     for (const [key, value] of Object.entries(settings)) {
@@ -228,7 +227,7 @@ app.post('/api/admin/settings', authenticateToken, isAdmin, async (req, res) => 
 });
 
 // Admin: Delete User
-app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, async (req, res) => {
+router.delete('/admin/users/:userId', authenticateToken, isAdmin, async (req, res) => {
   const { userId } = req.params;
   try {
     // Check if trying to delete self
@@ -244,7 +243,7 @@ app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, async (req, r
 });
 
 // Admin: Persona Image Upload
-app.post('/api/admin/persona-image', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
+router.post('/admin/persona-image', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
     const image_url = `/uploads/${req.file.filename}`;
@@ -260,9 +259,15 @@ app.post('/api/admin/persona-image', authenticateToken, isAdmin, upload.single('
   }
 });
 
-// Default 404 handler for API - MOVIDO PARA O FINAL
+// Mount the router
+app.use('/api', router);
+app.use('/', router); // Fallback for various deployment configurations
+
+// Default 404 handler for API
 app.use((req, res, next) => {
+  // If the request path starts with /api, it means the router didn't handle it
   if (req.path.startsWith('/api')) {
+    console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
     res.status(404).json({ error: 'Rota não encontrada' });
   } else {
     next();

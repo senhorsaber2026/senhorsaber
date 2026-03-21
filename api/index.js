@@ -98,9 +98,12 @@ const isAdmin = (req, res, next) => {
 
 // --- Routes ---
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', env: !!process.env.DATABASE_URL }));
+// --- Router Definition ---
+const router = express.Router();
 
-app.get('/api/settings/public', dbReady, async (req, res) => {
+router.get('/health', (req, res) => res.json({ status: 'ok', env: !!process.env.DATABASE_URL }));
+
+router.get('/settings/public', dbReady, async (req, res) => {
   try {
     const db = getSql();
     const result = await db`SELECT key, value FROM settings WHERE key IN ('global_api_key', 'pix_key', 'pix_value')`;
@@ -115,7 +118,7 @@ app.get('/api/settings/public', dbReady, async (req, res) => {
   }
 });
 
-app.post('/api/register', dbReady, async (req, res) => {
+router.post('/register', dbReady, async (req, res) => {
   const { name, email } = req.body;
   if (!name || !email) return res.status(400).json({ error: 'Nome e email são obrigatórios' });
   
@@ -141,7 +144,7 @@ app.post('/api/register', dbReady, async (req, res) => {
   }
 });
 
-app.post('/api/login', dbReady, async (req, res) => {
+router.post('/login', dbReady, async (req, res) => {
   const { login, password } = req.body;
   try {
     const db = getSql();
@@ -151,14 +154,12 @@ app.post('/api/login', dbReady, async (req, res) => {
     const user = users[0];
     let isMatch = false;
     
-    // Safety check for password comparison
     try {
       if (user.login === 'admin' && password === 'admin123') {
         isMatch = true;
       } else if (user.password && user.password.startsWith('$2')) {
         isMatch = await bcrypt.compare(password, user.password);
       } else {
-        // Plain text fallback or invalid password format
         isMatch = (password === user.password);
       }
     } catch (bcryptErr) {
@@ -177,9 +178,7 @@ app.post('/api/login', dbReady, async (req, res) => {
   }
 });
 
-// O handler de 404 foi movido para o final
-
-app.post('/api/payments/proof', authenticateToken, dbReady, upload.single('proof'), async (req, res) => {
+router.post('/payments/proof', authenticateToken, dbReady, upload.single('proof'), async (req, res) => {
   try {
     const db = getSql();
     await db`UPDATE users SET status = 'pending' WHERE id = ${req.user.id}`;
@@ -189,8 +188,7 @@ app.post('/api/payments/proof', authenticateToken, dbReady, upload.single('proof
   }
 });
 
-// User Avatar Upload
-app.post('/api/user/avatar', authenticateToken, dbReady, upload.single('avatar'), async (req, res) => {
+router.post('/user/avatar', authenticateToken, dbReady, upload.single('avatar'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
     const avatar_url = `/uploads/${req.file.filename}`;
@@ -203,7 +201,7 @@ app.post('/api/user/avatar', authenticateToken, dbReady, upload.single('avatar')
   }
 });
 
-app.get('/api/admin/users', authenticateToken, isAdmin, dbReady, async (req, res) => {
+router.get('/admin/users', authenticateToken, isAdmin, dbReady, async (req, res) => {
   try {
     const db = getSql();
     const users = await db`
@@ -219,7 +217,7 @@ app.get('/api/admin/users', authenticateToken, isAdmin, dbReady, async (req, res
   }
 });
 
-app.post('/api/admin/approve', authenticateToken, isAdmin, dbReady, async (req, res) => {
+router.post('/admin/approve', authenticateToken, isAdmin, dbReady, async (req, res) => {
   const { userId, action } = req.body;
   try {
     const db = getSql();
@@ -232,7 +230,7 @@ app.post('/api/admin/approve', authenticateToken, isAdmin, dbReady, async (req, 
   }
 });
 
-app.post('/api/admin/settings', authenticateToken, isAdmin, dbReady, async (req, res) => {
+router.post('/admin/settings', authenticateToken, isAdmin, dbReady, async (req, res) => {
   const { settings } = req.body;
   try {
     const db = getSql();
@@ -248,7 +246,7 @@ app.post('/api/admin/settings', authenticateToken, isAdmin, dbReady, async (req,
   }
 });
 
-app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, dbReady, async (req, res) => {
+router.delete('/admin/users/:userId', authenticateToken, isAdmin, dbReady, async (req, res) => {
   const { userId } = req.params;
   try {
     const db = getSql();
@@ -263,10 +261,9 @@ app.delete('/api/admin/users/:userId', authenticateToken, isAdmin, dbReady, asyn
   }
 });
 
-app.post('/api/admin/persona-image', authenticateToken, isAdmin, dbReady, upload.single('image'), async (req, res) => {
+router.post('/admin/persona-image', authenticateToken, isAdmin, dbReady, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhuma imagem enviada' });
-    // In Vercel /tmp is temporary, but settings URL will point correctly to what the frontend expects
     const image_url = `/uploads/${req.file.filename}`;
     const db = getSql();
     await db`
@@ -279,8 +276,16 @@ app.post('/api/admin/persona-image', authenticateToken, isAdmin, dbReady, upload
   }
 });
 
-// Default 404 handler for API - MOVIDO PARA O FINAL
+// Mount the router
+// On Vercel, requests to /api/index.js might come with or without the /api prefix 
+// depending on the vercel.json rewrites or folder structure. 
+// Using both covers all cases.
+app.use('/api', router);
+app.use('/', router);
+
+// Default 404 handler for API
 app.use((req, res) => {
+  console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Rota não encontrada' });
 });
 
